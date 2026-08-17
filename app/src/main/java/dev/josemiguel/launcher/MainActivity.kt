@@ -60,6 +60,8 @@ class MainActivity : ComponentActivity() {
     private var heldReady by mutableStateOf(listOf<HeldNotifications.Held>())
     private var listenerEnabled by mutableStateOf(true)
     private var usageAccessGranted by mutableStateOf(false)
+    private var strictMode by mutableStateOf(false)
+    private var guardEnabled by mutableStateOf(false)
     private var windDownEnabled by mutableStateOf(true)
     private var windDownStart by mutableStateOf(LocalTime.of(22, 0))
     private var windDownEnd by mutableStateOf(LocalTime.of(6, 0))
@@ -154,6 +156,15 @@ class MainActivity : ComponentActivity() {
                         isDefaultLauncher = isDefaultLauncher,
                         usageAccessGranted = usageAccessGranted,
                         listenerEnabled = listenerEnabled,
+                        strictMode = strictMode,
+                        guardEnabled = guardEnabled,
+                        onSetStrictMode = {
+                            prefs.strictMode = it
+                            strictMode = it
+                        },
+                        onOpenAccessibility = {
+                            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                        },
                         onOpenApps = { screen = Screen.SettingsApps },
                         onToggleWindDown = {
                             prefs.windDownEnabled = !windDownEnabled
@@ -307,6 +318,11 @@ class MainActivity : ComponentActivity() {
             .getEnabledListenerPackages(this)
             .contains(packageName)
         usageAccessGranted = UsageStatsRepository.hasPermission(this)
+        strictMode = prefs.strictMode
+        guardEnabled = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+        )?.contains(packageName) == true
         screen = Screen.Home
         refreshDefaultStatus()
         registerReceiver(packageReceiver, IntentFilter().apply {

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="guard_service_description">While strict mode is on, blocks the system pages used to switch the default launcher or disable this guard. Turn strict mode off inside Intentional\'s settings to deactivate it.</string>
+</resources>

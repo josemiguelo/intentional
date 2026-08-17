@@ -32,7 +32,10 @@ private sealed interface Editing {
     data object LongPauseSecs : Editing
     /** index into dropTimes, or -1 for a new drop time */
     data class Drop(val index: Int) : Editing
+    data object StrictOff : Editing
 }
+
+private const val STRICT_OFF_PHRASE = "let me switch"
 
 @Composable
 fun SettingsScreen(
@@ -45,6 +48,8 @@ fun SettingsScreen(
     isDefaultLauncher: Boolean,
     usageAccessGranted: Boolean,
     listenerEnabled: Boolean,
+    strictMode: Boolean,
+    guardEnabled: Boolean,
     onOpenApps: () -> Unit,
     onToggleWindDown: () -> Unit,
     onSetWindDownStart: (LocalTime) -> Unit,
@@ -55,6 +60,8 @@ fun SettingsScreen(
     onRequestDefault: () -> Unit,
     onGrantUsage: () -> Unit,
     onGrantListener: () -> Unit,
+    onSetStrictMode: (Boolean) -> Unit,
+    onOpenAccessibility: () -> Unit,
     onClearHeld: () -> Unit,
     onResetToday: () -> Unit,
 ) {
@@ -111,6 +118,27 @@ fun SettingsScreen(
             onClick = onGrantUsage,
         )
 
+        SectionHeader("strict mode")
+        SettingRow(
+            "strict mode · ${if (strictMode) "on" else "off"}",
+            onClick = {
+                if (strictMode) editing = Editing.StrictOff
+                else onSetStrictMode(true)
+            },
+        )
+        SettingRow(
+            if (guardEnabled) "guard service · enabled"
+            else "guard service · enable →",
+            muted = guardEnabled,
+            onClick = onOpenAccessibility,
+        )
+        Text(
+            "while on, the system pages for switching launchers are blocked. " +
+                "turning it off requires typing “$STRICT_OFF_PHRASE”.",
+            style = LauncherTheme.caption,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+
         SectionHeader("data")
         SettingRow("clear held notifications", onClick = onClearHeld)
         SettingRow("reset today's counters", onClick = onResetToday)
@@ -146,6 +174,17 @@ fun SettingsScreen(
             title = "long pause seconds",
             initial = "$longPauseSeconds",
             onSave = { it.trim().toIntOrNull()?.let(onSetLongPauseSeconds) },
+            onDismiss = { editing = null },
+        )
+
+        Editing.StrictOff -> TextEntryDialog(
+            title = "type “$STRICT_OFF_PHRASE” to turn strict mode off",
+            initial = "",
+            onSave = {
+                if (it.trim().equals(STRICT_OFF_PHRASE, ignoreCase = true)) {
+                    onSetStrictMode(false)
+                }
+            },
             onDismiss = { editing = null },
         )
 

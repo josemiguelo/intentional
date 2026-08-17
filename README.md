@@ -31,6 +31,27 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 Then press Home and choose Intentional as the default launcher (or open it
 from the app drawer to try it first).
 
+## Strict mode (sideload setup)
+
+Strict mode blocks the system screens used to switch the default launcher,
+via an AccessibilityService. Sideloaded builds need two one-time unlocks:
+
+```sh
+# Android 13+ silently drops accessibility events for sideloaded apps:
+adb shell appops set dev.josemiguel.launcher ACCESS_RESTRICTED_SETTINGS allow
+```
+
+Then enable "Intentional guard" in Settings > Accessibility (or via adb by
+appending `dev.josemiguel.launcher/dev.josemiguel.launcher.GuardService` to
+`settings get secure enabled_accessibility_services` and writing it back with
+`settings put`). **After every reinstall** the service stays registered but
+disconnected — cycle it off and on (remove it from that setting, wait a
+second, add it back) to rebind.
+
+Turning strict mode off happens in the launcher's settings and requires
+typing "let me switch" — deliberate, but never a lockout. Emergency escape:
+`adb shell settings put secure enabled_accessibility_services ""`.
+
 ## Design rationale
 
 The feature set follows the intervention literature: launch-time friction with

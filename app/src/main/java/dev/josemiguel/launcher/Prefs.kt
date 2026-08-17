@@ -52,6 +52,10 @@ class Prefs(context: Context) {
         else batched + packageName
     }
 
+    var strictMode: Boolean
+        get() = sp.getBoolean("strict_mode", false)
+        set(value) = sp.edit().putBoolean("strict_mode", value).apply()
+
     var windDownEnabled: Boolean
         get() = sp.getBoolean("winddown_enabled", true)
         set(value) = sp.edit().putBoolean("winddown_enabled", value).apply()
