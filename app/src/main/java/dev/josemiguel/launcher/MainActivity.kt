@@ -76,6 +76,10 @@ class MainActivity : ComponentActivity() {
                         onRequestDefault = ::requestDefaultLauncher,
                         onOpenApp = ::requestOpen,
                         onLongPressApp = { optionsFor = it },
+                        onReorder = { order ->
+                            prefs.favorites = order
+                            favorites = order
+                        },
                         onOpenSearch = { screen = Screen.Search },
                     )
 
