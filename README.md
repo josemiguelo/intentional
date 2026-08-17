@@ -48,8 +48,10 @@ appending `dev.josemiguel.launcher/dev.josemiguel.launcher.GuardService` to
 disconnected — cycle it off and on (remove it from that setting, wait a
 second, add it back) to rebind.
 
-Turning strict mode off happens in the launcher's settings and requires
-typing "let me switch" — deliberate, but never a lockout. Emergency escape:
+Turning strict mode on asks you to write your own reasons. Turning it off
+goes through "the door": a 30-second breathing pause showing those reasons
+back to you, plus your real progress — then an honest choice between "keep
+going" and "turn off". Deliberate, but never a lockout. Emergency escape:
 `adb shell settings put secure enabled_accessibility_services ""`.
 
 ## Design rationale

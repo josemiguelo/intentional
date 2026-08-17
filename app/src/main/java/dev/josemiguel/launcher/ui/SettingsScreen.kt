@@ -32,10 +32,8 @@ private sealed interface Editing {
     data object LongPauseSecs : Editing
     /** index into dropTimes, or -1 for a new drop time */
     data class Drop(val index: Int) : Editing
-    data object StrictOff : Editing
+    data object StrictReasons : Editing
 }
-
-private const val STRICT_OFF_PHRASE = "let me switch"
 
 @Composable
 fun SettingsScreen(
@@ -49,6 +47,7 @@ fun SettingsScreen(
     usageAccessGranted: Boolean,
     listenerEnabled: Boolean,
     strictMode: Boolean,
+    strictReasons: String,
     guardEnabled: Boolean,
     onOpenApps: () -> Unit,
     onToggleWindDown: () -> Unit,
@@ -60,7 +59,8 @@ fun SettingsScreen(
     onRequestDefault: () -> Unit,
     onGrantUsage: () -> Unit,
     onGrantListener: () -> Unit,
-    onSetStrictMode: (Boolean) -> Unit,
+    onEnableStrict: (String) -> Unit,
+    onBeginLeaving: () -> Unit,
     onOpenAccessibility: () -> Unit,
     onClearHeld: () -> Unit,
     onResetToday: () -> Unit,
@@ -122,8 +122,8 @@ fun SettingsScreen(
         SettingRow(
             "strict mode · ${if (strictMode) "on" else "off"}",
             onClick = {
-                if (strictMode) editing = Editing.StrictOff
-                else onSetStrictMode(true)
+                if (strictMode) onBeginLeaving()
+                else editing = Editing.StrictReasons
             },
         )
         SettingRow(
@@ -134,7 +134,8 @@ fun SettingsScreen(
         )
         Text(
             "while on, the system pages for switching launchers are blocked. " +
-                "turning it off requires typing “$STRICT_OFF_PHRASE”.",
+                "turning it on asks you to write your reasons; turning it off " +
+                "walks you past them first.",
             style = LauncherTheme.caption,
             modifier = Modifier.padding(top = 4.dp),
         )
@@ -177,14 +178,12 @@ fun SettingsScreen(
             onDismiss = { editing = null },
         )
 
-        Editing.StrictOff -> TextEntryDialog(
-            title = "type “$STRICT_OFF_PHRASE” to turn strict mode off",
-            initial = "",
-            onSave = {
-                if (it.trim().equals(STRICT_OFF_PHRASE, ignoreCase = true)) {
-                    onSetStrictMode(false)
-                }
-            },
+        Editing.StrictReasons -> TextEntryDialog(
+            title = "why are you doing this? write it for the future you who will want out.",
+            initial = strictReasons,
+            singleLine = false,
+            saveLabel = "commit",
+            onSave = { if (it.isNotBlank()) onEnableStrict(it.trim()) },
             onDismiss = { editing = null },
         )
 
@@ -241,6 +240,8 @@ fun SettingRow(text: String, muted: Boolean = false, onClick: () -> Unit = {}) {
 private fun TextEntryDialog(
     title: String,
     initial: String,
+    singleLine: Boolean = true,
+    saveLabel: String = "save",
     onSave: (String) -> Unit,
     onRemove: (() -> Unit)? = null,
     onDismiss: () -> Unit,
@@ -257,8 +258,9 @@ private fun TextEntryDialog(
             BasicTextField(
                 value = value,
                 onValueChange = { value = it },
-                singleLine = true,
-                textStyle = LauncherTheme.item,
+                singleLine = singleLine,
+                maxLines = if (singleLine) 1 else 6,
+                textStyle = if (singleLine) LauncherTheme.item else LauncherTheme.body,
                 cursorBrush = SolidColor(LauncherTheme.ink),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -266,7 +268,7 @@ private fun TextEntryDialog(
             )
             Row {
                 Text(
-                    "save",
+                    saveLabel,
                     style = LauncherTheme.item,
                     modifier = Modifier
                         .clickable { onSave(value); onDismiss() }

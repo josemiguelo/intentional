@@ -56,6 +56,20 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("strict_mode", false)
         set(value) = sp.edit().putBoolean("strict_mode", value).apply()
 
+    /** The user's own words, written while motivated; shown back at the door. */
+    var strictReasons: String
+        get() = sp.getString("strict_reasons", "")!!
+        set(value) = sp.edit().putString("strict_reasons", value).apply()
+
+    var strictSince: Long
+        get() = sp.getLong("strict_since", 0L)
+        set(value) = sp.edit().putLong("strict_since", value).apply()
+
+    /** Times the user reached the leaving flow and chose to stay. */
+    var strictStays: Int
+        get() = sp.getInt("strict_stays", 0)
+        set(value) = sp.edit().putInt("strict_stays", value).apply()
+
     var windDownEnabled: Boolean
         get() = sp.getBoolean("winddown_enabled", true)
         set(value) = sp.edit().putBoolean("winddown_enabled", value).apply()

@@ -25,6 +25,7 @@ import androidx.core.app.NotificationManagerCompat
 import dev.josemiguel.launcher.ui.AppOptionsDialog
 import dev.josemiguel.launcher.ui.HomeScreen
 import dev.josemiguel.launcher.ui.LauncherTheme
+import dev.josemiguel.launcher.ui.LeavingScreen
 import dev.josemiguel.launcher.ui.PauseScreen
 import dev.josemiguel.launcher.ui.ReflectionScreen
 import dev.josemiguel.launcher.ui.SearchScreen
@@ -40,6 +41,7 @@ sealed interface Screen {
     data object Tray : Screen
     data object Settings : Screen
     data object SettingsApps : Screen
+    data object Leaving : Screen
     data class Pause(val app: AppEntry) : Screen
 }
 
@@ -93,7 +95,10 @@ class MainActivity : ComponentActivity() {
                     .systemBarsPadding()
             ) {
                 BackHandler(enabled = screen != Screen.Home) {
-                    screen = if (screen == Screen.SettingsApps) Screen.Settings else Screen.Home
+                    screen = when (screen) {
+                        Screen.SettingsApps, Screen.Leaving -> Screen.Settings
+                        else -> Screen.Home
+                    }
                 }
 
                 when (val s = screen) {
@@ -131,7 +136,10 @@ class MainActivity : ComponentActivity() {
                         onLongPressApp = { optionsFor = it },
                     )
 
-                    Screen.Reflect -> ReflectionScreen(history = prefs.history(14))
+                    Screen.Reflect -> ReflectionScreen(
+                        history = prefs.history(14),
+                        strictStays = prefs.strictStays,
+                    )
 
                     Screen.Tray -> TrayScreen(
                         items = heldReady,
@@ -157,11 +165,15 @@ class MainActivity : ComponentActivity() {
                         usageAccessGranted = usageAccessGranted,
                         listenerEnabled = listenerEnabled,
                         strictMode = strictMode,
+                        strictReasons = prefs.strictReasons,
                         guardEnabled = guardEnabled,
-                        onSetStrictMode = {
-                            prefs.strictMode = it
-                            strictMode = it
+                        onEnableStrict = { reasons ->
+                            prefs.strictReasons = reasons
+                            prefs.strictSince = System.currentTimeMillis()
+                            prefs.strictMode = true
+                            strictMode = true
                         },
+                        onBeginLeaving = { screen = Screen.Leaving },
                         onOpenAccessibility = {
                             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         },
@@ -235,6 +247,29 @@ class MainActivity : ComponentActivity() {
                             frictionVersion++
                         },
                     )
+
+                    Screen.Leaving -> {
+                        val daysOn = if (prefs.strictSince > 0L) {
+                            ((System.currentTimeMillis() - prefs.strictSince) / 86_400_000L)
+                                .toInt().coerceIn(0, 365)
+                        } else 0
+                        LeavingScreen(
+                            reasons = prefs.strictReasons,
+                            daysOn = daysOn,
+                            pausedClosedSince = prefs.history((daysOn + 1).coerceAtMost(60))
+                                .sumOf { it.pausedClosed },
+                            staysCount = prefs.strictStays,
+                            onStay = {
+                                prefs.strictStays += 1
+                                screen = Screen.Home
+                            },
+                            onTurnOff = {
+                                prefs.strictMode = false
+                                strictMode = false
+                                screen = Screen.Settings
+                            },
+                        )
+                    }
 
                     is Screen.Pause -> PauseScreen(
                         app = s.app,

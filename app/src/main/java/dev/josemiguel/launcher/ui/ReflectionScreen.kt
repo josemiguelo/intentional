@@ -26,7 +26,7 @@ private val DAY = DateTimeFormatter.ofPattern("EEE d", Locale.ENGLISH)
  * goals, no streaks to break.
  */
 @Composable
-fun ReflectionScreen(history: List<DayCounts>) {
+fun ReflectionScreen(history: List<DayCounts>, strictStays: Int) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -75,5 +75,12 @@ fun ReflectionScreen(history: List<DayCounts>) {
                 "${lastWeek.sumOf { it.pausedClosed }} closed",
             style = LauncherTheme.caption.copy(color = LauncherTheme.faint),
         )
+        if (strictStays > 0) {
+            Text(
+                "stood at the door and stayed · $strictStays",
+                style = LauncherTheme.caption,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+        }
     }
 }
