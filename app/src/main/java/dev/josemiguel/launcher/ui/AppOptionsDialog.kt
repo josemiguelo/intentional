@@ -18,8 +18,12 @@ fun AppOptionsDialog(
     app: AppEntry,
     isFavorite: Boolean,
     isConsidered: Boolean,
+    isEssential: Boolean,
+    frictionLabel: String,
     onToggleFavorite: () -> Unit,
     onToggleConsidered: () -> Unit,
+    onToggleEssential: () -> Unit,
+    onCycleFriction: () -> Unit,
     onAppInfo: () -> Unit,
     onUninstall: () -> Unit,
     onDismiss: () -> Unit,
@@ -52,6 +56,26 @@ fun AppOptionsDialog(
                     .clickable { onToggleConsidered(); onDismiss() }
                     .padding(vertical = 12.dp),
             )
+            if (isFavorite) {
+                Text(
+                    if (isEssential) "not essential in wind-down" else "essential in wind-down",
+                    style = LauncherTheme.item,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onToggleEssential(); onDismiss() }
+                        .padding(vertical = 12.dp),
+                )
+            }
+            if (isConsidered) {
+                Text(
+                    "friction: $frictionLabel",
+                    style = LauncherTheme.item,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onCycleFriction)
+                        .padding(vertical = 12.dp),
+                )
+            }
             Text(
                 "app info",
                 style = LauncherTheme.item,

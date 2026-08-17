@@ -20,11 +20,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import android.content.Intent
 import android.provider.Settings
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -34,19 +36,24 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.graphics.SolidColor
 import dev.josemiguel.launcher.AppEntry
 import dev.josemiguel.launcher.AppUsageToday
+import dev.josemiguel.launcher.Friction
 import dev.josemiguel.launcher.UsageStatsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-private const val PAUSE_SECONDS = 8
-
-private fun usageLine(stats: AppUsageToday): String {
-    if (stats.opensToday == 0) return "first open today"
-    val base = "opened ${stats.opensToday}× today · ${stats.minutesToday} min"
-    return if (stats.opensLastHour > 0) "$base · ${stats.opensLastHour} in the last hour" else base
+private fun usageLines(stats: AppUsageToday): List<String> {
+    if (stats.opensToday == 0) return listOf("first open today")
+    return buildList {
+        add("opened ${stats.opensToday}× today")
+        add("${stats.minutesToday} min so far")
+        if (stats.opensLastHour > 0) add("${stats.opensLastHour} in the last hour")
+    }
 }
 
 /**
@@ -57,10 +64,25 @@ private fun usageLine(stats: AppUsageToday): String {
 @Composable
 fun PauseScreen(
     app: AppEntry,
+    friction: Friction,
+    windDown: Boolean,
+    windDownEndLabel: String,
+    baseSeconds: Int,
+    longSeconds: Int,
     onOpen: () -> Unit,
     onClose: () -> Unit,
 ) {
-    var remaining by remember { mutableIntStateOf(PAUSE_SECONDS) }
+    val blocked = friction == Friction.NIGHT_LOCK && windDown
+    val frictionSeconds = when (friction) {
+        Friction.PAUSE, Friction.TYPE_NAME -> baseSeconds
+        Friction.LONG_PAUSE, Friction.NIGHT_LOCK -> longSeconds
+    }
+    val pauseSeconds = frictionSeconds * (if (windDown && !blocked) 2 else 1)
+    var typed by remember { mutableStateOf("") }
+    val typeSatisfied = friction != Friction.TYPE_NAME ||
+        typed.trim().equals(app.label.trim(), ignoreCase = true)
+
+    var remaining by remember { mutableIntStateOf(pauseSeconds) }
     LaunchedEffect(Unit) {
         while (remaining > 0) {
             delay(1000)
@@ -101,22 +123,47 @@ fun PauseScreen(
         )
 
         Spacer(Modifier.height(48.dp))
-        Text("breathe", style = LauncherTheme.body.copy(color = LauncherTheme.muted))
-        Spacer(Modifier.height(8.dp))
         Text(
-            "what do you want from ${app.label.lowercase()}?",
+            "breathe",
+            style = LauncherTheme.title.copy(letterSpacing = 4.sp),
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            if (blocked) "${app.label.lowercase()} is locked for the night"
+            else "what do you want from ${app.label.lowercase()}?",
             style = LauncherTheme.body,
             textAlign = TextAlign.Center,
         )
 
+        if (friction == Friction.TYPE_NAME && !blocked) {
+            Spacer(Modifier.height(20.dp))
+            BasicTextField(
+                value = typed,
+                onValueChange = { typed = it },
+                singleLine = true,
+                textStyle = LauncherTheme.body.copy(textAlign = TextAlign.Center),
+                cursorBrush = SolidColor(LauncherTheme.ink),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                "type “${app.label.lowercase()}” to open",
+                style = LauncherTheme.caption,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+
         Spacer(Modifier.height(16.dp))
         if (hasUsageAccess) {
             stats?.let {
-                Text(
-                    usageLine(it),
-                    style = LauncherTheme.caption,
-                    textAlign = TextAlign.Center,
-                )
+                usageLines(it).forEach { line ->
+                    Text(
+                        line,
+                        style = LauncherTheme.item,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(vertical = 2.dp),
+                    )
+                }
             }
         } else {
             Text(
@@ -132,27 +179,40 @@ fun PauseScreen(
 
         Spacer(Modifier.weight(1f))
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        if (blocked) {
             Text(
-                "close",
+                "close · until $windDownEndLabel",
                 style = LauncherTheme.item,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
-                    .weight(1f)
+                    .fillMaxWidth()
                     .clickable(onClick = onClose)
                     .padding(vertical = 16.dp),
             )
-            Text(
-                if (remaining > 0) "open in ${remaining}s" else "open",
-                style = LauncherTheme.item.copy(
-                    color = if (remaining > 0) LauncherTheme.faint else LauncherTheme.ink
-                ),
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable(enabled = remaining == 0, onClick = onOpen)
-                    .padding(vertical = 16.dp),
-            )
+        } else {
+            val openEnabled = remaining == 0 && typeSatisfied
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(
+                    "close",
+                    style = LauncherTheme.item,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(onClick = onClose)
+                        .padding(vertical = 16.dp),
+                )
+                Text(
+                    if (remaining > 0) "open in ${remaining}s" else "open",
+                    style = LauncherTheme.item.copy(
+                        color = if (openEnabled) LauncherTheme.ink else LauncherTheme.faint
+                    ),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(enabled = openEnabled, onClick = onOpen)
+                        .padding(vertical = 16.dp),
+                )
+            }
         }
     }
 }

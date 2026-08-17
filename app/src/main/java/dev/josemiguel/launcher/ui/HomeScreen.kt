@@ -1,6 +1,8 @@
 package dev.josemiguel.launcher.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Column
@@ -28,8 +30,10 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import dev.josemiguel.launcher.AppEntry
+import dev.josemiguel.launcher.WindDown
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
@@ -41,16 +45,27 @@ private val DATE = DateTimeFormatter.ofPattern("EEE, MMM d", Locale.ENGLISH)
 /** Below this much total finger movement, a long-press release opens the options dialog. */
 private const val TAP_SLOP_PX = 14f
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     favorites: List<AppEntry>,
+    essentials: Set<String>,
+    windDownEnabled: Boolean,
+    windDownStart: LocalTime,
+    windDownEnd: LocalTime,
     countsToday: Pair<Int, Int>,
+    heldReadyCount: Int,
+    needsListenerGrant: Boolean,
     isDefaultLauncher: Boolean,
     onRequestDefault: () -> Unit,
+    onOpenTray: () -> Unit,
+    onEnableFiltering: () -> Unit,
     onOpenApp: (AppEntry) -> Unit,
     onLongPressApp: (AppEntry) -> Unit,
     onReorder: (List<String>) -> Unit,
     onOpenSearch: () -> Unit,
+    onOpenReflection: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     var now by remember { mutableStateOf(LocalDateTime.now()) }
     LaunchedEffect(Unit) {
@@ -73,8 +88,24 @@ fun HomeScreen(
             }
             .padding(horizontal = 28.dp, vertical = 24.dp)
     ) {
-        Text(now.format(TIME), style = LauncherTheme.clock)
+        val windDown = windDownEnabled &&
+            WindDown.isActive(windDownStart, windDownEnd, now.toLocalTime())
+
+        Text(
+            now.format(TIME),
+            style = LauncherTheme.clock,
+            modifier = Modifier.combinedClickable(
+                onClick = {},
+                onLongClick = onOpenSettings,
+            ),
+        )
         Text(now.format(DATE), style = LauncherTheme.caption)
+        if (windDown) {
+            Text(
+                "wind-down · until $windDownEnd",
+                style = LauncherTheme.caption.copy(color = LauncherTheme.faint),
+            )
+        }
 
         if (!isDefaultLauncher) {
             Text(
@@ -95,8 +126,13 @@ fun HomeScreen(
             )
         }
 
+        val shownFavorites =
+            if (windDown && favorites.any { it.packageName in essentials }) {
+                favorites.filter { it.packageName in essentials }
+            } else favorites
+
         FavoritesList(
-            favorites = favorites,
+            favorites = shownFavorites,
             onOpenApp = onOpenApp,
             onLongPressApp = onLongPressApp,
             onReorder = onReorder,
@@ -104,10 +140,30 @@ fun HomeScreen(
 
         Spacer(Modifier.weight(1f))
 
+        if (heldReadyCount > 0) {
+            Text(
+                "→ $heldReadyCount notifications waiting",
+                style = LauncherTheme.body,
+                modifier = Modifier
+                    .clickable(onClick = onOpenTray)
+                    .padding(bottom = 10.dp),
+            )
+        }
+        if (needsListenerGrant) {
+            Text(
+                "→ enable notification filtering",
+                style = LauncherTheme.caption,
+                modifier = Modifier
+                    .clickable(onClick = onEnableFiltering)
+                    .padding(bottom = 10.dp),
+            )
+        }
+
         val (intentional, paused) = countsToday
         Text(
             "$intentional intentional · $paused paused-and-closed",
             style = LauncherTheme.caption,
+            modifier = Modifier.clickable(onClick = onOpenReflection),
         )
         Text(
             "↑ swipe to search",

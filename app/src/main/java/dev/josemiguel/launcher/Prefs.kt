@@ -2,6 +2,7 @@ package dev.josemiguel.launcher
 
 import android.content.Context
 import java.time.LocalDate
+import java.time.LocalTime
 
 /**
  * Persistence for the launcher's three pieces of state: the favorites list
@@ -31,6 +32,74 @@ class Prefs(context: Context) {
         else considered + packageName
     }
 
+    /** Favorites that stay visible during wind-down. Empty set = show all. */
+    var essentials: Set<String>
+        get() = sp.getStringSet("essentials", emptySet())!!
+        set(value) = sp.edit().putStringSet("essentials", value).apply()
+
+    fun toggleEssential(packageName: String) {
+        essentials = if (packageName in essentials) essentials - packageName
+        else essentials + packageName
+    }
+
+    /** Apps whose notifications are batched. Seeded from considered on first read. */
+    var batched: Set<String>
+        get() = sp.getStringSet("batched", null) ?: considered
+        set(value) = sp.edit().putStringSet("batched", value).apply()
+
+    fun toggleBatched(packageName: String) {
+        batched = if (packageName in batched) batched - packageName
+        else batched + packageName
+    }
+
+    var windDownEnabled: Boolean
+        get() = sp.getBoolean("winddown_enabled", true)
+        set(value) = sp.edit().putBoolean("winddown_enabled", value).apply()
+
+    var windDownStart: LocalTime
+        get() = minutesToTime(sp.getInt("winddown_start", 22 * 60))
+        set(value) = sp.edit().putInt("winddown_start", timeToMinutes(value)).apply()
+
+    var windDownEnd: LocalTime
+        get() = minutesToTime(sp.getInt("winddown_end", 6 * 60))
+        set(value) = sp.edit().putInt("winddown_end", timeToMinutes(value)).apply()
+
+    var pauseSeconds: Int
+        get() = sp.getInt("pause_seconds", 8)
+        set(value) = sp.edit().putInt("pause_seconds", value.coerceIn(1, 300)).apply()
+
+    var longPauseSeconds: Int
+        get() = sp.getInt("long_pause_seconds", 25)
+        set(value) = sp.edit().putInt("long_pause_seconds", value.coerceIn(1, 600)).apply()
+
+    /** Batch delivery times for held notifications, sorted. */
+    var dropTimes: List<LocalTime>
+        get() = sp.getString("drop_times", "540,780,1140")!!
+            .split(',')
+            .filter { it.isNotBlank() }
+            .map { minutesToTime(it.trim().toInt()) }
+            .sorted()
+        set(value) = sp.edit()
+            .putString("drop_times", value.map(::timeToMinutes).distinct().sorted().joinToString(","))
+            .apply()
+
+    fun resetToday() {
+        sp.edit()
+            .remove("intentional-${todaySuffix()}")
+            .remove("paused-${todaySuffix()}")
+            .apply()
+    }
+
+    private fun minutesToTime(minutes: Int) = LocalTime.of(minutes / 60, minutes % 60)
+    private fun timeToMinutes(time: LocalTime) = time.hour * 60 + time.minute
+
+    fun frictionFor(packageName: String): Friction =
+        Friction.of(sp.getInt("friction-$packageName", 0))
+
+    fun cycleFriction(packageName: String) {
+        sp.edit().putInt("friction-$packageName", frictionFor(packageName).next().ordinal).apply()
+    }
+
     private fun todaySuffix() = LocalDate.now().toString()
 
     fun incrementIntentional() = increment("intentional-${todaySuffix()}")
@@ -44,4 +113,23 @@ class Prefs(context: Context) {
     /** (intentional opens, paused-and-closed) for today. */
     fun countsToday(): Pair<Int, Int> =
         sp.getInt("intentional-${todaySuffix()}", 0) to sp.getInt("paused-${todaySuffix()}", 0)
+
+    /** Daily counters for the last [days] days, most recent first. */
+    fun history(days: Int): List<DayCounts> {
+        val today = LocalDate.now()
+        return (0 until days).map { back ->
+            val date = today.minusDays(back.toLong())
+            DayCounts(
+                date = date,
+                intentional = sp.getInt("intentional-$date", 0),
+                pausedClosed = sp.getInt("paused-$date", 0),
+            )
+        }
+    }
 }
+
+data class DayCounts(
+    val date: LocalDate,
+    val intentional: Int,
+    val pausedClosed: Int,
+)
