@@ -18,22 +18,36 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.josemiguel.launcher.AppEntry
+import dev.josemiguel.launcher.AppUsageToday
+import dev.josemiguel.launcher.UsageStatsRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 private const val PAUSE_SECONDS = 8
+
+private fun usageLine(stats: AppUsageToday): String {
+    if (stats.opensToday == 0) return "first open today"
+    val base = "opened ${stats.opensToday}× today · ${stats.minutesToday} min"
+    return if (stats.opensLastHour > 0) "$base · ${stats.opensLastHour} in the last hour" else base
+}
 
 /**
  * The one-sec mechanic: a breathing pause before a considered app opens.
@@ -51,6 +65,16 @@ fun PauseScreen(
         while (remaining > 0) {
             delay(1000)
             remaining--
+        }
+    }
+
+    val context = LocalContext.current
+    val hasUsageAccess = remember { UsageStatsRepository.hasPermission(context) }
+    val stats by produceState<AppUsageToday?>(initialValue = null) {
+        if (hasUsageAccess) {
+            value = withContext(Dispatchers.IO) {
+                UsageStatsRepository.statsFor(context, app.packageName)
+            }
         }
     }
 
@@ -84,6 +108,27 @@ fun PauseScreen(
             style = LauncherTheme.body,
             textAlign = TextAlign.Center,
         )
+
+        Spacer(Modifier.height(16.dp))
+        if (hasUsageAccess) {
+            stats?.let {
+                Text(
+                    usageLine(it),
+                    style = LauncherTheme.caption,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        } else {
+            Text(
+                "→ grant usage access to see your day",
+                style = LauncherTheme.caption,
+                modifier = Modifier
+                    .clickable {
+                        context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                    }
+                    .padding(4.dp),
+            )
+        }
 
         Spacer(Modifier.weight(1f))
 
