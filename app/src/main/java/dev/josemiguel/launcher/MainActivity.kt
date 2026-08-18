@@ -23,9 +23,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.app.NotificationManagerCompat
 import dev.josemiguel.launcher.ui.AppOptionsDialog
+import dev.josemiguel.launcher.ui.BlockedScreen
+import dev.josemiguel.launcher.ui.GroupsScreen
 import dev.josemiguel.launcher.ui.HomeScreen
 import dev.josemiguel.launcher.ui.LauncherTheme
-import dev.josemiguel.launcher.ui.LeavingScreen
 import dev.josemiguel.launcher.ui.PauseScreen
 import dev.josemiguel.launcher.ui.ReflectionScreen
 import dev.josemiguel.launcher.ui.SearchScreen
@@ -41,8 +42,9 @@ sealed interface Screen {
     data object Tray : Screen
     data object Settings : Screen
     data object SettingsApps : Screen
-    data object Leaving : Screen
+    data object Groups : Screen
     data class Pause(val app: AppEntry) : Screen
+    data class Blocked(val app: AppEntry) : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -56,13 +58,15 @@ class MainActivity : ComponentActivity() {
     private var essentials by mutableStateOf(setOf<String>())
     private var batched by mutableStateOf(setOf<String>())
     private var frictionVersion by mutableStateOf(0)
+    private var groupsVersion by mutableStateOf(0)
     private var countsToday by mutableStateOf(0 to 0)
     private var optionsFor by mutableStateOf<AppEntry?>(null)
     private var isDefaultLauncher by mutableStateOf(true)
     private var heldReady by mutableStateOf(listOf<HeldNotifications.Held>())
     private var listenerEnabled by mutableStateOf(true)
     private var usageAccessGranted by mutableStateOf(false)
-    private var strictMode by mutableStateOf(false)
+    // Strict mode is mandatory (always on); kept as a field only for readability.
+    private val strictMode = true
     private var guardEnabled by mutableStateOf(false)
     private var uninstallProtected by mutableStateOf(false)
 
@@ -101,7 +105,7 @@ class MainActivity : ComponentActivity() {
             ) {
                 BackHandler(enabled = screen != Screen.Home) {
                     screen = when (screen) {
-                        Screen.SettingsApps, Screen.Leaving -> Screen.Settings
+                        Screen.SettingsApps, Screen.Groups -> Screen.Settings
                         else -> Screen.Home
                     }
                 }
@@ -149,7 +153,6 @@ class MainActivity : ComponentActivity() {
                         ReflectionScreen(
                             history = prefs.history(14)
                                 .filter { !it.date.isBefore(installDate) },
-                            strictStays = prefs.strictStays,
                         )
                     }
 
@@ -176,22 +179,14 @@ class MainActivity : ComponentActivity() {
                         isDefaultLauncher = isDefaultLauncher,
                         usageAccessGranted = usageAccessGranted,
                         listenerEnabled = listenerEnabled,
-                        strictMode = strictMode,
-                        strictReasons = prefs.strictReasons,
                         guardEnabled = guardEnabled,
-                        onEnableStrict = { reasons ->
-                            prefs.strictReasons = reasons
-                            prefs.strictSince = System.currentTimeMillis()
-                            prefs.strictMode = true
-                            strictMode = true
-                        },
-                        onBeginLeaving = { screen = Screen.Leaving },
                         uninstallProtected = uninstallProtected,
                         onToggleUninstallProtection = ::toggleUninstallProtection,
                         onOpenAccessibility = {
                             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         },
                         onOpenApps = { screen = Screen.SettingsApps },
+                        onOpenGroups = { screen = Screen.Groups },
                         onToggleWindDown = {
                             prefs.windDownEnabled = !windDownEnabled
                             windDownEnabled = prefs.windDownEnabled
@@ -239,6 +234,12 @@ class MainActivity : ComponentActivity() {
                         batched = batched,
                         frictionVersion = frictionVersion,
                         frictionFor = { prefs.frictionFor(it) },
+                        groupNames = prefs.groups.map { it.name },
+                        groupNameOf = { prefs.groupOf(it)?.name },
+                        onAssignGroup = { pkg, groupName ->
+                            prefs.assignToGroup(pkg, groupName)
+                            frictionVersion++
+                        },
                         onToggleFavorite = {
                             prefs.toggleFavorite(it)
                             favorites = prefs.favorites
@@ -262,26 +263,24 @@ class MainActivity : ComponentActivity() {
                         },
                     )
 
-                    Screen.Leaving -> {
-                        val daysOn = if (prefs.strictSince > 0L) {
-                            ((System.currentTimeMillis() - prefs.strictSince) / 86_400_000L)
-                                .toInt().coerceIn(0, 365)
-                        } else 0
-                        LeavingScreen(
-                            reasons = prefs.strictReasons,
-                            daysOn = daysOn,
-                            pausedClosedSince = prefs.history((daysOn + 1).coerceAtMost(60))
-                                .sumOf { it.pausedClosed },
-                            staysCount = prefs.strictStays,
-                            onStay = {
-                                prefs.strictStays += 1
-                                screen = Screen.Home
-                            },
-                            onTurnOff = {
-                                prefs.strictMode = false
-                                strictMode = false
-                                screen = Screen.Settings
-                            },
+                    Screen.Groups -> GroupsScreen(
+                        groups = groupsVersion.let { prefs.groups },
+                        canChangeLimit = { prefs.canChangeGroupLimit(it) },
+                        daysUntilChangeable = { prefs.daysUntilChangeable(it) },
+                        onAddGroup = { prefs.addGroup(it); groupsVersion++ },
+                        onDeleteGroup = { prefs.deleteGroup(it); groupsVersion++ },
+                        onSetLimit = { name, minutes ->
+                            prefs.setGroupLimit(name, minutes)
+                            groupsVersion++
+                        },
+                    )
+
+                    is Screen.Blocked -> {
+                        val group = prefs.groupOf(s.app.packageName)
+                        BlockedScreen(
+                            groupName = group?.name ?: "",
+                            limitMinutes = group?.limitMinutes ?: 0,
+                            onClose = { screen = Screen.Home },
                         )
                     }
 
@@ -367,7 +366,6 @@ class MainActivity : ComponentActivity() {
             .getEnabledListenerPackages(this)
             .contains(packageName)
         usageAccessGranted = UsageStatsRepository.hasPermission(this)
-        strictMode = prefs.strictMode
         uninstallProtected = getSystemService(android.app.admin.DevicePolicyManager::class.java)
             .isAdminActive(adminComponent)
         guardEnabled = Settings.Secure.getString(
@@ -414,8 +412,10 @@ class MainActivity : ComponentActivity() {
     private fun toggleUninstallProtection() {
         val dpm = getSystemService(android.app.admin.DevicePolicyManager::class.java)
         if (dpm.isAdminActive(adminComponent)) {
-            // Removing protection is the commitment being undone: only allowed
-            // once strict mode has been turned off through the leaving flow.
+            // Strict mode is mandatory, so the in-app removal path (gated on
+            // strict mode being off) is never reachable: uninstall protection,
+            // once on, can only be removed with the adb escape hatch in the
+            // README. Kept here for clarity.
             if (!strictMode) {
                 dpm.removeActiveAdmin(adminComponent)
                 uninstallProtected = false
@@ -443,11 +443,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestOpen(app: AppEntry) {
-        if (app.packageName in considered) {
+        if (usageAccessGranted && isOverLimit(app.packageName)) {
+            screen = Screen.Blocked(app)
+        } else if (app.packageName in considered) {
             screen = Screen.Pause(app)
         } else {
             open(app)
         }
+    }
+
+    private fun isOverLimit(packageName: String): Boolean {
+        val group = prefs.groupOf(packageName) ?: return false
+        val used = UsageStatsRepository.groupMinutesToday(this, group.packages)
+        return used >= group.limitMinutes
     }
 
     private fun open(app: AppEntry) {

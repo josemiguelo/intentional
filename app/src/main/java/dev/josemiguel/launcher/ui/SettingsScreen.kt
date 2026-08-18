@@ -32,7 +32,6 @@ private sealed interface Editing {
     data object LongPauseSecs : Editing
     /** index into dropTimes, or -1 for a new drop time */
     data class Drop(val index: Int) : Editing
-    data object StrictReasons : Editing
 }
 
 @Composable
@@ -46,11 +45,10 @@ fun SettingsScreen(
     isDefaultLauncher: Boolean,
     usageAccessGranted: Boolean,
     listenerEnabled: Boolean,
-    strictMode: Boolean,
-    strictReasons: String,
     guardEnabled: Boolean,
     uninstallProtected: Boolean,
     onOpenApps: () -> Unit,
+    onOpenGroups: () -> Unit,
     onToggleWindDown: () -> Unit,
     onSetWindDownStart: (LocalTime) -> Unit,
     onSetWindDownEnd: (LocalTime) -> Unit,
@@ -60,8 +58,6 @@ fun SettingsScreen(
     onRequestDefault: () -> Unit,
     onGrantUsage: () -> Unit,
     onGrantListener: () -> Unit,
-    onEnableStrict: (String) -> Unit,
-    onBeginLeaving: () -> Unit,
     onOpenAccessibility: () -> Unit,
     onToggleUninstallProtection: () -> Unit,
     onClearHeld: () -> Unit,
@@ -79,6 +75,7 @@ fun SettingsScreen(
 
         SectionHeader("apps")
         SettingRow("manage apps →", onClick = onOpenApps)
+        SettingRow("groups & time limits →", onClick = onOpenGroups)
 
         SectionHeader("wind-down")
         SettingRow(
@@ -121,32 +118,32 @@ fun SettingsScreen(
         )
 
         SectionHeader("strict mode")
-        SettingRow(
-            "strict mode · ${if (strictMode) "on" else "off"}",
-            onClick = {
-                if (strictMode) onBeginLeaving()
-                else editing = Editing.StrictReasons
-            },
+        SettingRow("strict mode · on · required", muted = true)
+        RowNote(
+            "keeps you from quietly switching away from this launcher in a " +
+                "weak moment. it's always on so the decision to leave has to be " +
+                "deliberate, never a reflex."
         )
         SettingRow(
-            if (guardEnabled) "guard service · enabled"
+            if (guardEnabled) "guard service · enabled · required"
             else "guard service · enable →",
             muted = guardEnabled,
             onClick = onOpenAccessibility,
         )
+        RowNote(
+            "the part that does the blocking. it watches for the system screens " +
+                "that switch the default launcher or turn this guard off, and " +
+                "sends you back home. enable it in accessibility settings to arm " +
+                "strict mode."
+        )
         SettingRow(
-            "uninstall protection · ${if (uninstallProtected) "on" else "off"}" +
-                (if (uninstallProtected && strictMode) " · locked" else ""),
-            muted = uninstallProtected && strictMode,
+            "uninstall protection · ${if (uninstallProtected) "on · locked" else "off"}",
+            muted = uninstallProtected,
             onClick = onToggleUninstallProtection,
         )
-        Text(
-            "while on, the system pages for switching launchers are blocked. " +
-                "turning it on asks you to write your reasons; turning it off " +
-                "walks you past them first. uninstall protection unlocks only " +
-                "after strict mode is off.",
-            style = LauncherTheme.caption,
-            modifier = Modifier.padding(top = 4.dp),
+        RowNote(
+            "stops the app from being uninstalled. once on it's locked; removing " +
+                "it needs adb (see README)."
         )
 
         SectionHeader("data")
@@ -187,15 +184,6 @@ fun SettingsScreen(
             onDismiss = { editing = null },
         )
 
-        Editing.StrictReasons -> TextEntryDialog(
-            title = "why are you doing this? write it for the future you who will want out.",
-            initial = strictReasons,
-            singleLine = false,
-            saveLabel = "commit",
-            onSave = { if (it.isNotBlank()) onEnableStrict(it.trim()) },
-            onDismiss = { editing = null },
-        )
-
         is Editing.Drop -> TextEntryDialog(
             title = if (e.index == -1) "new drop time (hh:mm)" else "drop time (hh:mm)",
             initial = if (e.index == -1) "" else "${dropTimes[e.index]}",
@@ -227,6 +215,16 @@ fun SectionHeader(text: String) {
         text,
         style = LauncherTheme.caption.copy(color = LauncherTheme.faint),
         modifier = Modifier.padding(top = 26.dp, bottom = 2.dp),
+    )
+}
+
+/** An explanatory caption tied to the row above it. */
+@Composable
+private fun RowNote(text: String) {
+    Text(
+        text,
+        style = LauncherTheme.caption.copy(color = LauncherTheme.faint),
+        modifier = Modifier.padding(bottom = 6.dp),
     )
 }
 

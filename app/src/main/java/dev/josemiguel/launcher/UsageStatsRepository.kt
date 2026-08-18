@@ -67,4 +67,42 @@ object UsageStatsRepository {
 
         return AppUsageToday(opens, opensLastHour, foregroundMs / 60_000)
     }
+
+    /**
+     * Total foreground minutes today across all [packages], in a single pass —
+     * the shared usage of an app group counted against its budget.
+     */
+    fun groupMinutesToday(context: Context, packages: Set<String>): Long {
+        if (packages.isEmpty()) return 0
+        val usageStatsManager = context.getSystemService(UsageStatsManager::class.java)
+        val now = System.currentTimeMillis()
+        val startOfDay = LocalDate.now()
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+
+        val events = usageStatsManager.queryEvents(startOfDay, now)
+        val event = UsageEvents.Event()
+        var foregroundPkg: String? = null
+        var sessionStart = 0L
+        var foregroundMs = 0L
+
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            if (event.eventType != UsageEvents.Event.ACTIVITY_RESUMED) continue
+
+            if (foregroundPkg in packages && sessionStart > 0 && event.packageName != foregroundPkg) {
+                foregroundMs += event.timeStamp - sessionStart
+            }
+            if (event.packageName != foregroundPkg) {
+                sessionStart = event.timeStamp
+            }
+            foregroundPkg = event.packageName
+        }
+        if (foregroundPkg in packages && sessionStart > 0) {
+            foregroundMs += now - sessionStart
+        }
+
+        return foregroundMs / 60_000
+    }
 }

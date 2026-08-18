@@ -38,11 +38,14 @@ fun SettingsAppsScreen(
     batched: Set<String>,
     frictionVersion: Int,
     frictionFor: (String) -> Friction,
+    groupNames: List<String>,
+    groupNameOf: (String) -> String?,
     onToggleFavorite: (String) -> Unit,
     onToggleConsidered: (String) -> Unit,
     onToggleEssential: (String) -> Unit,
     onToggleBatched: (String) -> Unit,
     onCycleFriction: (String) -> Unit,
+    onAssignGroup: (String, String?) -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
     var expandedPkg by remember { mutableStateOf<String?>(null) }
@@ -129,6 +132,18 @@ fun SettingsAppsScreen(
                                 value = if (pkg in batched) "yes" else "no",
                                 active = pkg in batched,
                             ) { onToggleBatched(pkg) }
+
+                            val group = frictionVersion.let { groupNameOf(pkg) }
+                            OptionRow(
+                                label = "group",
+                                value = group ?: "none",
+                                active = group != null,
+                            ) {
+                                val idx = groupNames.indexOf(group)
+                                val next =
+                                    if (idx + 1 >= groupNames.size) null else groupNames[idx + 1]
+                                onAssignGroup(pkg, next)
+                            }
                         }
                     }
                 }
