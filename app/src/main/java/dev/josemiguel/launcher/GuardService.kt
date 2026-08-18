@@ -10,6 +10,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.widget.Toast
 import dev.josemiguel.launcher.guard.GuardBypass
 import dev.josemiguel.launcher.guard.GuardPolicy
+import dev.josemiguel.launcher.guard.ScreenInfo
 
 /**
  * The launcher's watchdog. It does two jobs, both triggered by foreground-app
@@ -84,24 +85,24 @@ class GuardService : AccessibilityService() {
         if (!watched) return
         if (!Prefs(this).strictMode) return
 
-        val cls = event.className?.toString() ?: ""
-        val screenText = event.text.joinToString(" ").lowercase()
+        val screen = ScreenInfo(
+            packageName = pkg,
+            className = event.className?.toString() ?: "",
+            text = event.text.joinToString(" ").lowercase(),
+        )
 
-        val isHomePicker = policy.isHomePickerScreen(pkg, cls, screenText)
-        val isOwnAccessibilityScreen = cls.contains("Accessibility", ignoreCase = true) &&
-            screenText.contains("intentional")
-        // The admin add/deactivate screen's window text does NOT include the
-        // app label (verified on One UI), so there's no way to scope this to
-        // our own admin — while strict mode is on, the whole device-admin
-        // page is off-limits except during our own activation bypass window.
-        val isAdminScreen = cls.contains("DeviceAdmin", ignoreCase = true) &&
-            !GuardBypass.adminScreenAllowed()
-        // The Private DNS chooser is an AlertDialog (generic class), so match on
-        // its window text — locks the DNS-based web filter against changes.
-        val isPrivateDnsScreen = screenText.contains("private dns")
+        // The device-admin page can't be scoped to our own admin (its text omits
+        // the app label), so the whole page is off-limits except during our own
+        // activation bypass window.
+        val isAdminScreen = policy.isDeviceAdminScreen(screen) && !GuardBypass.adminScreenAllowed()
 
-        if (isHomePicker || isOwnAccessibilityScreen || isAdminScreen || isPrivateDnsScreen) {
-            Log.i(TAG, "blocked: $cls")
+        val blocked = policy.isHomePicker(screen) ||
+            policy.isOwnAccessibilityScreen(screen) ||
+            isAdminScreen ||
+            policy.isPrivateDnsScreen(screen)
+
+        if (blocked) {
+            Log.i(TAG, "blocked: ${screen.className}")
             performGlobalAction(GLOBAL_ACTION_HOME)
         }
     }

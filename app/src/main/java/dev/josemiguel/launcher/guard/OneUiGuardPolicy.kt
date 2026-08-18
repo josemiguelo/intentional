@@ -1,20 +1,21 @@
 package dev.josemiguel.launcher.guard
 
 /**
- * Samsung One UI. Verified live on One UI (Android 16, 2026-08-17): the
- * home picker is com.android.permissioncontroller.role.ui.DefaultAppActivity
- * with window text "Default home app". The same DefaultAppActivity class also
- * serves the browser/SMS pickers, so the window text — not the class — is
- * what narrows the match to home. English-locale text; add the localized
- * string here if the device language changes.
+ * Samsung One UI, verified live (Android 16, 2026-08).
+ *
+ * Reuses [DefaultGuardPolicy] by delegation and overrides only what differs on
+ * this phone: the home picker. The device-admin add (SecDeviceAdminAdd), the
+ * accessibility page, and the Private DNS chooser (a generic AlertDialog) all
+ * match the default detection here, so they're inherited — override them if a
+ * future One UI build changes them.
  */
-object OneUiGuardPolicy : GuardPolicy {
+object OneUiGuardPolicy : GuardPolicy by DefaultGuardPolicy {
 
-    override fun isHomePickerScreen(
-        packageName: String,
-        className: String,
-        screenText: String,
-    ): Boolean =
-        className.contains("DefaultAppActivity", ignoreCase = true) &&
-            screenText.contains("default home app")
+    // The home picker is permissioncontroller's DefaultAppActivity, but that
+    // same class also serves the browser/SMS pickers — so the window text
+    // "default home app" (not the class) is what narrows the match to home.
+    // English-locale text; add the localized string if the language changes.
+    override fun isHomePicker(screen: ScreenInfo): Boolean =
+        screen.className.contains("DefaultAppActivity", ignoreCase = true) &&
+            screen.text.contains("default home app")
 }
