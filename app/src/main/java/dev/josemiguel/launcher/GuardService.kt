@@ -3,13 +3,17 @@ package dev.josemiguel.launcher
 import android.accessibilityservice.AccessibilityService
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import dev.josemiguel.launcher.guard.GuardPolicy
 
 /**
- * Strict mode's watchdog. While [Prefs.strictMode] is on, landing on a system
- * screen that could switch the default launcher — or disable this very
- * service — bounces straight back to the home screen. Inert whenever strict
- * mode is off, so the sanctioned exit (typing the phrase in settings) always
- * works, and adb remains the ultimate escape hatch.
+ * Strict mode's watchdog. While [Prefs.strictMode] is on, landing on the
+ * screen that switches the default launcher — or the accessibility page that
+ * could disable this very service — bounces straight back to the home screen.
+ * Which screen counts as "the launcher switcher" is decided per-OEM by
+ * [GuardPolicy]; everything else in Settings (including the general "Default
+ * apps" list) stays reachable. Inert whenever strict mode is off, so the
+ * sanctioned exit (the leaving flow) always works, and adb remains the
+ * ultimate escape hatch.
  *
  * Hard-won platform notes (Samsung, Android 13+):
  * - Sideloaded apps need the ACCESS_RESTRICTED_SETTINGS appop allowed or the
@@ -22,18 +26,11 @@ import android.view.accessibility.AccessibilityEvent
  */
 class GuardService : AccessibilityService() {
 
-    private val defaultAppScreens = listOf(
-        "ManageDefaultApps",
-        "DefaultApp",
-        "DefaultHome",
-        "HomeSettings",
-        "PreferredListSettings",
-        "RoleHolder",
-    )
+    private val policy = GuardPolicy.forDevice()
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        Log.i(TAG, "connected")
+        Log.i(TAG, "connected, policy=${policy.javaClass.simpleName}")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
@@ -48,14 +45,11 @@ class GuardService : AccessibilityService() {
         val screenText = event.text.joinToString(" ").lowercase()
         Log.i(TAG, "window: pkg=$pkg cls=$cls text=$screenText")
 
-        val isDefaultAppScreen = defaultAppScreens.any { cls.contains(it, ignoreCase = true) } ||
-            screenText.contains("default home") ||
-            screenText.contains("home app")
-
+        val isHomePicker = policy.isHomePickerScreen(pkg, cls, screenText)
         val isOwnAccessibilityScreen = cls.contains("Accessibility", ignoreCase = true) &&
             screenText.contains("intentional")
 
-        if (isDefaultAppScreen || isOwnAccessibilityScreen) {
+        if (isHomePicker || isOwnAccessibilityScreen) {
             Log.i(TAG, "blocked: $cls")
             performGlobalAction(GLOBAL_ACTION_HOME)
         }
