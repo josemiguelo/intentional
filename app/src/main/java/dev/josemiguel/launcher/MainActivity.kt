@@ -136,10 +136,17 @@ class MainActivity : ComponentActivity() {
                         onLongPressApp = { optionsFor = it },
                     )
 
-                    Screen.Reflect -> ReflectionScreen(
-                        history = prefs.history(14),
-                        strictStays = prefs.strictStays,
-                    )
+                    Screen.Reflect -> {
+                        val installDate = java.time.Instant
+                            .ofEpochMilli(packageManager.getPackageInfo(packageName, 0).firstInstallTime)
+                            .atZone(java.time.ZoneId.systemDefault())
+                            .toLocalDate()
+                        ReflectionScreen(
+                            history = prefs.history(14)
+                                .filter { !it.date.isBefore(installDate) },
+                            strictStays = prefs.strictStays,
+                        )
+                    }
 
                     Screen.Tray -> TrayScreen(
                         items = heldReady,
