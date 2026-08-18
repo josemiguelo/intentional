@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.graphics.SolidColor
 import dev.josemiguel.launcher.AppEntry
+import dev.josemiguel.launcher.AppGroup
 import dev.josemiguel.launcher.AppUsageToday
 import dev.josemiguel.launcher.Friction
 import dev.josemiguel.launcher.UsageStatsRepository
@@ -64,6 +65,7 @@ private fun usageLines(stats: AppUsageToday): List<String> {
 @Composable
 fun PauseScreen(
     app: AppEntry,
+    group: AppGroup?,
     friction: Friction,
     windDown: Boolean,
     windDownEndLabel: String,
@@ -92,10 +94,19 @@ fun PauseScreen(
 
     val context = LocalContext.current
     val hasUsageAccess = remember { UsageStatsRepository.hasPermission(context) }
-    val stats by produceState<AppUsageToday?>(initialValue = null) {
+    // When the app is in a group, the meaningful number is the group's shared
+    // budget remaining — not this app's isolated minutes.
+    val lines by produceState<List<String>>(initialValue = emptyList()) {
         if (hasUsageAccess) {
             value = withContext(Dispatchers.IO) {
-                UsageStatsRepository.statsFor(context, app.packageName)
+                if (group != null) {
+                    val used = UsageStatsRepository.groupMinutesToday(context, group.packages)
+                    val left = (group.limitMinutes - used).coerceAtLeast(0)
+                    if (left <= 0) listOf("no ${group.name.lowercase()} time left today")
+                    else listOf("$left min left", "in ${group.name.lowercase()} today")
+                } else {
+                    usageLines(UsageStatsRepository.statsFor(context, app.packageName))
+                }
             }
         }
     }
@@ -155,15 +166,13 @@ fun PauseScreen(
 
         Spacer(Modifier.height(16.dp))
         if (hasUsageAccess) {
-            stats?.let {
-                usageLines(it).forEach { line ->
-                    Text(
-                        line,
-                        style = LauncherTheme.item,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(vertical = 2.dp),
-                    )
-                }
+            lines.forEach { line ->
+                Text(
+                    line,
+                    style = LauncherTheme.item,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(vertical = 2.dp),
+                )
             }
         } else {
             Text(

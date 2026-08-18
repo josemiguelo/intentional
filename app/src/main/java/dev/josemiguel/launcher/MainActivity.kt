@@ -286,12 +286,13 @@ class MainActivity : ComponentActivity() {
 
                     is Screen.Pause -> PauseScreen(
                         app = s.app,
+                        group = if (usageAccessGranted) prefs.groupOf(s.app.packageName) else null,
                         friction = prefs.frictionFor(s.app.packageName),
                         windDown = windDownActive(),
                         windDownEndLabel = windDownEnd.toString(),
                         baseSeconds = pauseSeconds,
                         longSeconds = longPauseSeconds,
-                        onOpen = { open(s.app) },
+                        onOpen = { openOrBlock(s.app) },
                         onClose = {
                             prefs.incrementPausedClosed()
                             countsToday = prefs.countsToday()
@@ -443,10 +444,18 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestOpen(app: AppEntry) {
+        when {
+            // Considered apps breathe first; the time-limit block is only
+            // revealed after the pause, when they choose to open.
+            app.packageName in considered -> screen = Screen.Pause(app)
+            usageAccessGranted && isOverLimit(app.packageName) -> screen = Screen.Blocked(app)
+            else -> open(app)
+        }
+    }
+
+    private fun openOrBlock(app: AppEntry) {
         if (usageAccessGranted && isOverLimit(app.packageName)) {
             screen = Screen.Blocked(app)
-        } else if (app.packageName in considered) {
-            screen = Screen.Pause(app)
         } else {
             open(app)
         }
