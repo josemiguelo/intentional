@@ -49,6 +49,7 @@ fun SettingsScreen(
     strictMode: Boolean,
     strictReasons: String,
     guardEnabled: Boolean,
+    uninstallProtected: Boolean,
     onOpenApps: () -> Unit,
     onToggleWindDown: () -> Unit,
     onSetWindDownStart: (LocalTime) -> Unit,
@@ -62,6 +63,7 @@ fun SettingsScreen(
     onEnableStrict: (String) -> Unit,
     onBeginLeaving: () -> Unit,
     onOpenAccessibility: () -> Unit,
+    onToggleUninstallProtection: () -> Unit,
     onClearHeld: () -> Unit,
     onResetToday: () -> Unit,
 ) {
@@ -132,10 +134,17 @@ fun SettingsScreen(
             muted = guardEnabled,
             onClick = onOpenAccessibility,
         )
+        SettingRow(
+            "uninstall protection · ${if (uninstallProtected) "on" else "off"}" +
+                (if (uninstallProtected && strictMode) " · locked" else ""),
+            muted = uninstallProtected && strictMode,
+            onClick = onToggleUninstallProtection,
+        )
         Text(
             "while on, the system pages for switching launchers are blocked. " +
                 "turning it on asks you to write your reasons; turning it off " +
-                "walks you past them first.",
+                "walks you past them first. uninstall protection unlocks only " +
+                "after strict mode is off.",
             style = LauncherTheme.caption,
             modifier = Modifier.padding(top = 4.dp),
         )

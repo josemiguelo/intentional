@@ -64,6 +64,11 @@ class MainActivity : ComponentActivity() {
     private var usageAccessGranted by mutableStateOf(false)
     private var strictMode by mutableStateOf(false)
     private var guardEnabled by mutableStateOf(false)
+    private var uninstallProtected by mutableStateOf(false)
+
+    private val adminComponent by lazy {
+        android.content.ComponentName(this, UninstallGuardAdmin::class.java)
+    }
     private var windDownEnabled by mutableStateOf(true)
     private var windDownStart by mutableStateOf(LocalTime.of(22, 0))
     private var windDownEnd by mutableStateOf(LocalTime.of(6, 0))
@@ -181,6 +186,8 @@ class MainActivity : ComponentActivity() {
                             strictMode = true
                         },
                         onBeginLeaving = { screen = Screen.Leaving },
+                        uninstallProtected = uninstallProtected,
+                        onToggleUninstallProtection = ::toggleUninstallProtection,
                         onOpenAccessibility = {
                             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         },
@@ -361,6 +368,8 @@ class MainActivity : ComponentActivity() {
             .contains(packageName)
         usageAccessGranted = UsageStatsRepository.hasPermission(this)
         strictMode = prefs.strictMode
+        uninstallProtected = getSystemService(android.app.admin.DevicePolicyManager::class.java)
+            .isAdminActive(adminComponent)
         guardEnabled = Settings.Secure.getString(
             contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
@@ -399,6 +408,33 @@ class MainActivity : ComponentActivity() {
         val roleManager = getSystemService(RoleManager::class.java)
         if (roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) {
             roleRequest.launch(roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME))
+        }
+    }
+
+    private fun toggleUninstallProtection() {
+        val dpm = getSystemService(android.app.admin.DevicePolicyManager::class.java)
+        if (dpm.isAdminActive(adminComponent)) {
+            // Removing protection is the commitment being undone: only allowed
+            // once strict mode has been turned off through the leaving flow.
+            if (!strictMode) {
+                dpm.removeActiveAdmin(adminComponent)
+                uninstallProtected = false
+            }
+        } else {
+            dev.josemiguel.launcher.guard.GuardBypass.allowAdminScreen()
+            startActivity(
+                Intent(android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                    putExtra(
+                        android.app.admin.DevicePolicyManager.EXTRA_DEVICE_ADMIN,
+                        adminComponent,
+                    )
+                    putExtra(
+                        android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                        "Blocks uninstalling Intentional. Removable in the app's " +
+                            "settings once strict mode is off.",
+                    )
+                }
+            )
         }
     }
 

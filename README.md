@@ -51,8 +51,17 @@ second, add it back) to rebind.
 Turning strict mode on asks you to write your own reasons. Turning it off
 goes through "the door": a 30-second breathing pause showing those reasons
 back to you, plus your real progress — then an honest choice between "keep
-going" and "turn off". Deliberate, but never a lockout. Emergency escape:
-`adb shell settings put secure enabled_accessibility_services ""`.
+going" and "turn off". Deliberate, but never a lockout.
+
+**Uninstall protection** (optional, in strict-mode settings) activates an
+empty device admin so Android refuses to uninstall the app; while strict mode
+is on, the guard also blocks the system page that would deactivate the admin.
+Turning strict mode off through the leaving flow unlocks everything — the
+protection row then removes the admin in one tap.
+
+Emergency escapes:
+`adb shell settings put secure enabled_accessibility_services ""`
+`adb shell dpm remove-active-admin dev.josemiguel.launcher/.UninstallGuardAdmin`
 
 ## Design rationale
 

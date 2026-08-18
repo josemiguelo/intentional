@@ -3,6 +3,7 @@ package dev.josemiguel.launcher
 import android.accessibilityservice.AccessibilityService
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import dev.josemiguel.launcher.guard.GuardBypass
 import dev.josemiguel.launcher.guard.GuardPolicy
 
 /**
@@ -48,8 +49,15 @@ class GuardService : AccessibilityService() {
         val isHomePicker = policy.isHomePickerScreen(pkg, cls, screenText)
         val isOwnAccessibilityScreen = cls.contains("Accessibility", ignoreCase = true) &&
             screenText.contains("intentional")
+        // The admin add/deactivate screen's window text does NOT include the
+        // app label (verified on One UI), so there's no way to scope this to
+        // our own admin — while strict mode is on, the whole device-admin
+        // page is off-limits except during our own activation bypass window.
+        // This closes the Apps > Intentional > Uninstall > "deactivate" path.
+        val isAdminScreen = cls.contains("DeviceAdmin", ignoreCase = true) &&
+            !GuardBypass.adminScreenAllowed()
 
-        if (isHomePicker || isOwnAccessibilityScreen) {
+        if (isHomePicker || isOwnAccessibilityScreen || isAdminScreen) {
             Log.i(TAG, "blocked: $cls")
             performGlobalAction(GLOBAL_ACTION_HOME)
         }
