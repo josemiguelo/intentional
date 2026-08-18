@@ -96,8 +96,11 @@ class GuardService : AccessibilityService() {
         // page is off-limits except during our own activation bypass window.
         val isAdminScreen = cls.contains("DeviceAdmin", ignoreCase = true) &&
             !GuardBypass.adminScreenAllowed()
+        // The Private DNS chooser is an AlertDialog (generic class), so match on
+        // its window text — locks the DNS-based web filter against changes.
+        val isPrivateDnsScreen = screenText.contains("private dns")
 
-        if (isHomePicker || isOwnAccessibilityScreen || isAdminScreen) {
+        if (isHomePicker || isOwnAccessibilityScreen || isAdminScreen || isPrivateDnsScreen) {
             Log.i(TAG, "blocked: $cls")
             performGlobalAction(GLOBAL_ACTION_HOME)
         }
