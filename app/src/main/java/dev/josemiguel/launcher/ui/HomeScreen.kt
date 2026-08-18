@@ -99,11 +99,11 @@ fun HomeScreen(
                 onLongClick = onOpenSettings,
             ),
         )
-        Text(now.format(DATE), style = LauncherTheme.caption)
+        Text(now.format(DATE), style = LauncherTheme.body)
         if (windDown) {
             Text(
                 "wind-down · until $windDownEnd",
-                style = LauncherTheme.caption.copy(color = LauncherTheme.faint),
+                style = LauncherTheme.body.copy(color = LauncherTheme.faint),
             )
         }
 
@@ -162,12 +162,12 @@ fun HomeScreen(
         val (intentional, paused) = countsToday
         Text(
             "$intentional intentional · $paused paused-and-closed",
-            style = LauncherTheme.caption,
+            style = LauncherTheme.body,
             modifier = Modifier.clickable(onClick = onOpenReflection),
         )
         Text(
             "↑ swipe to search",
-            style = LauncherTheme.caption.copy(color = LauncherTheme.faint),
+            style = LauncherTheme.body.copy(color = LauncherTheme.faint),
             modifier = Modifier
                 .clickable(onClick = onOpenSearch)
                 .padding(top = 6.dp),

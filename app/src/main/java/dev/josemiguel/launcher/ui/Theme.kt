@@ -14,7 +14,7 @@ object LauncherTheme {
     val faint = Color(0xFF4A463F)
 
     /** Home hero only. */
-    val clock = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 44.sp, lineHeight = 50.sp, color = ink)
+    val clock = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 52.sp, lineHeight = 58.sp, color = ink)
     /** Screen titles and single anchor words. */
     val title = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 28.sp, lineHeight = 36.sp, color = ink)
     /** Tappable list rows, buttons, pause stats. */

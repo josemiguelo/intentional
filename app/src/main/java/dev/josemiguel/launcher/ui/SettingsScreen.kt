@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -73,7 +74,7 @@ fun SettingsScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 28.dp, vertical = 24.dp)
     ) {
-        Text("settings", style = LauncherTheme.title)
+        Text("settings", style = LauncherTheme.title.copy(fontSize = 32.sp))
 
         SectionHeader("apps")
         SettingRow("manage apps →", onClick = onOpenApps)
@@ -225,7 +226,7 @@ private fun parseTime(input: String): LocalTime? = try {
 fun SectionHeader(text: String) {
     Text(
         text,
-        style = LauncherTheme.caption.copy(color = LauncherTheme.faint),
+        style = LauncherTheme.caption.copy(color = LauncherTheme.faint, fontSize = 15.sp),
         modifier = Modifier.padding(top = 26.dp, bottom = 2.dp),
     )
 }
@@ -235,7 +236,7 @@ fun SectionHeader(text: String) {
 private fun RowNote(text: String) {
     Text(
         text,
-        style = LauncherTheme.caption.copy(color = LauncherTheme.faint),
+        style = LauncherTheme.caption.copy(color = LauncherTheme.faint, fontSize = 14.sp, lineHeight = 20.sp),
         modifier = Modifier.padding(bottom = 6.dp),
     )
 }
@@ -245,7 +246,9 @@ fun SettingRow(text: String, muted: Boolean = false, onClick: () -> Unit = {}) {
     Text(
         text,
         style = LauncherTheme.body.copy(
-            color = if (muted) LauncherTheme.muted else LauncherTheme.ink
+            color = if (muted) LauncherTheme.muted else LauncherTheme.ink,
+            fontSize = 19.sp,
+            lineHeight = 27.sp,
         ),
         modifier = Modifier
             .fillMaxWidth()
@@ -273,7 +276,7 @@ private fun TextEntryDialog(
                 .background(LauncherTheme.background, RoundedCornerShape(8.dp))
                 .padding(vertical = 16.dp, horizontal = 20.dp)
         ) {
-            Text(title, style = LauncherTheme.caption)
+            Text(title, style = LauncherTheme.caption.copy(fontSize = 15.sp))
             BasicTextField(
                 value = value,
                 onValueChange = { value = it },
