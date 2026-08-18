@@ -48,9 +48,9 @@ class Prefs(context: Context) {
         else essentials + packageName
     }
 
-    /** Apps whose notifications are batched. Seeded from considered on first read. */
+    /** Apps whose notifications are batched. Independent of considered. */
     var batched: Set<String>
-        get() = sp.getStringSet("batched", null) ?: considered
+        get() = sp.getStringSet("batched", emptySet())!!
         set(value) = sp.edit().putStringSet("batched", value).apply()
 
     fun toggleBatched(packageName: String) {
