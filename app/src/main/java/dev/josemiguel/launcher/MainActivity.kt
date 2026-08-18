@@ -5,7 +5,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
@@ -69,6 +72,10 @@ class MainActivity : ComponentActivity() {
     private val strictMode = true
     private var guardEnabled by mutableStateOf(false)
     private var uninstallProtected by mutableStateOf(false)
+    private var exactAlarmsAllowed by mutableStateOf(true)
+
+    private val notifPermRequest =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
     private val adminComponent by lazy {
         android.content.ComponentName(this, UninstallGuardAdmin::class.java)
@@ -95,6 +102,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         prefs = Prefs(this)
+
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notifPermRequest.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
 
         setContent {
             Box(
@@ -210,6 +223,15 @@ class MainActivity : ComponentActivity() {
                         onSetDropTimes = {
                             prefs.dropTimes = it
                             dropTimes = prefs.dropTimes
+                            DropScheduler.scheduleNext(this@MainActivity)
+                        },
+                        exactAlarmsAllowed = exactAlarmsAllowed,
+                        onGrantExactAlarm = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                startActivity(
+                                    Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                                )
+                            }
                         },
                         onRequestDefault = ::requestDefaultLauncher,
                         onGrantUsage = {
@@ -373,6 +395,8 @@ class MainActivity : ComponentActivity() {
             contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
         )?.contains(packageName) == true
+        exactAlarmsAllowed = DropScheduler.exactAlarmsAllowed(this)
+        DropScheduler.scheduleNext(this)
         screen = Screen.Home
         refreshDefaultStatus()
         registerReceiver(packageReceiver, IntentFilter().apply {

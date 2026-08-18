@@ -55,6 +55,8 @@ fun SettingsScreen(
     onSetPauseSeconds: (Int) -> Unit,
     onSetLongPauseSeconds: (Int) -> Unit,
     onSetDropTimes: (List<LocalTime>) -> Unit,
+    exactAlarmsAllowed: Boolean,
+    onGrantExactAlarm: () -> Unit,
     onRequestDefault: () -> Unit,
     onGrantUsage: () -> Unit,
     onGrantListener: () -> Unit,
@@ -101,6 +103,16 @@ fun SettingsScreen(
             else "notification access · grant →",
             muted = listenerEnabled,
             onClick = onGrantListener,
+        )
+        SettingRow(
+            if (exactAlarmsAllowed) "exact alarms · granted"
+            else "exact alarms · allow →",
+            muted = exactAlarmsAllowed,
+            onClick = onGrantExactAlarm,
+        )
+        RowNote(
+            "batched notifications are delivered as a digest with sound at each " +
+                "drop time. exact alarms keep the digest on time.",
         )
 
         SectionHeader("permissions")
