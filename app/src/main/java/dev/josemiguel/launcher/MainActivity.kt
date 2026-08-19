@@ -116,8 +116,12 @@ class MainActivity : ComponentActivity() {
                     .background(LauncherTheme.background)
                     .systemBarsPadding()
             ) {
-                BackHandler(enabled = screen != Screen.Home) {
+                // Always consume back so the home screen never slides away as
+                // the system tries to background the launcher; on Home it's a
+                // deliberate no-op.
+                BackHandler(enabled = true) {
                     screen = when (screen) {
+                        Screen.Home -> Screen.Home
                         Screen.SettingsApps, Screen.Groups -> Screen.Settings
                         else -> Screen.Home
                     }
