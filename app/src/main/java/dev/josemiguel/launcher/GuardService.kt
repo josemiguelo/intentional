@@ -1,7 +1,9 @@
 package dev.josemiguel.launcher
 
 import android.accessibilityservice.AccessibilityService
+import android.content.ComponentName
 import android.content.Intent
+import android.media.session.MediaSessionManager
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -49,6 +51,8 @@ class GuardService : AccessibilityService() {
     private var launchable: Set<String> = emptySet()
     private var launchableRefreshedAt = 0L
 
+    private var lastPipCheck = 0L
+
     private val limitPoll = object : Runnable {
         override fun run() {
             val pkg = monitoredPackage ?: return
@@ -60,6 +64,9 @@ class GuardService : AccessibilityService() {
                     Toast.LENGTH_SHORT,
                 ).show()
                 performGlobalAction(GLOBAL_ACTION_HOME)
+                // HOME doesn't close picture-in-picture apps (YouTube drops into
+                // the mini-player and keeps playing), so stop its playback too.
+                handler.postDelayed({ stopOverLimitMedia() }, MEDIA_SETTLE_MS)
                 // Leave monitoredPackage set: if they reopen it, the next window
                 // event re-arms the poll and kicks them out again.
             } else {
@@ -74,7 +81,14 @@ class GuardService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
-        if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+        val type = event.eventType
+        // PiP entering/leaving fires TYPE_WINDOWS_CHANGED, not a state change.
+        if (type == AccessibilityEvent.TYPE_WINDOWS_CHANGED ||
+            type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+        ) {
+            stopOverLimitMedia()
+        }
+        if (type != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
 
         updateLimitMonitoring(pkg)
@@ -127,6 +141,37 @@ class GuardService : AccessibilityService() {
         return used >= group.limitMinutes
     }
 
+    /**
+     * Stops media playback for any app over its group budget. This is the fix
+     * for PiP-capable apps (YouTube): HOME can't close them — they drop into the
+     * mini-player and keep playing — and a normal service can't force-stop them.
+     * Sending Stop to the app's media session (via our notification-listener
+     * component) reliably halts playback, PiP or not. Needs notification access;
+     * without it this silently no-ops.
+     */
+    private fun stopOverLimitMedia() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastPipCheck < PIP_CHECK_THROTTLE_MS) return
+        lastPipCheck = now
+        if (!UsageStatsRepository.hasPermission(this)) return
+
+        val manager = getSystemService(MediaSessionManager::class.java) ?: return
+        val listener = ComponentName(this, NotifListener::class.java)
+        val controllers = try {
+            manager.getActiveSessions(listener)
+        } catch (e: SecurityException) {
+            return
+        }
+        for (controller in controllers) {
+            val pkg = controller.packageName ?: continue
+            val group = Prefs(this).groupOf(pkg) ?: continue
+            if (UsageStatsRepository.groupMinutesToday(this, group.packages) < group.limitMinutes) continue
+            Log.i(TAG, "stopping media: $pkg")
+            controller.transportControls.pause()
+            controller.transportControls.stop()
+        }
+    }
+
     private fun launchablePackages(): Set<String> {
         val now = SystemClock.elapsedRealtime()
         if (launchable.isEmpty() || now - launchableRefreshedAt > LAUNCHABLE_TTL_MS) {
@@ -150,5 +195,7 @@ class GuardService : AccessibilityService() {
         const val TAG = "GuardService"
         const val POLL_MS = 20_000L
         const val LAUNCHABLE_TTL_MS = 300_000L
+        const val PIP_CHECK_THROTTLE_MS = 800L
+        const val MEDIA_SETTLE_MS = 700L
     }
 }
