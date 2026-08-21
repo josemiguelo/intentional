@@ -3,7 +3,10 @@ package dev.josemiguel.launcher
 import android.accessibilityservice.AccessibilityService
 import android.content.ComponentName
 import android.content.Intent
+import android.media.session.MediaController
+import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
+import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -53,6 +56,9 @@ class GuardService : AccessibilityService() {
 
     private var lastPipCheck = 0L
 
+    /** Sessions we've attached a re-stop callback to, so play attempts bounce back. */
+    private val watchedSessions = mutableSetOf<MediaSession.Token>()
+
     private val limitPoll = object : Runnable {
         override fun run() {
             val pkg = monitoredPackage ?: return
@@ -75,9 +81,37 @@ class GuardService : AccessibilityService() {
         }
     }
 
+    private var sessionsListener: MediaSessionManager.OnActiveSessionsChangedListener? = null
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         Log.i(TAG, "connected, policy=${policy.javaClass.simpleName}")
+        registerMediaSessionListener()
+    }
+
+    /**
+     * Listens for media sessions so an over-budget app's playback is stopped the
+     * instant it starts — a session appearing fires the listener, and each
+     * over-budget session gets a callback that re-stops it on any resume.
+     * Needs notification access; without it this quietly does nothing.
+     */
+    private fun registerMediaSessionListener() {
+        val manager = getSystemService(MediaSessionManager::class.java) ?: return
+        val listener = MediaSessionManager.OnActiveSessionsChangedListener { controllers ->
+            controllers?.forEach(::stopIfOverLimit)
+        }
+        try {
+            manager.addOnActiveSessionsChangedListener(
+                listener,
+                ComponentName(this, NotifListener::class.java),
+                handler,
+            )
+            sessionsListener = listener
+            manager.getActiveSessions(ComponentName(this, NotifListener::class.java))
+                .forEach(::stopIfOverLimit)
+        } catch (e: SecurityException) {
+            // notification access not granted
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
@@ -156,20 +190,50 @@ class GuardService : AccessibilityService() {
         if (!UsageStatsRepository.hasPermission(this)) return
 
         val manager = getSystemService(MediaSessionManager::class.java) ?: return
-        val listener = ComponentName(this, NotifListener::class.java)
         val controllers = try {
-            manager.getActiveSessions(listener)
+            manager.getActiveSessions(ComponentName(this, NotifListener::class.java))
         } catch (e: SecurityException) {
             return
         }
-        for (controller in controllers) {
-            val pkg = controller.packageName ?: continue
-            val group = Prefs(this).groupOf(pkg) ?: continue
-            if (UsageStatsRepository.groupMinutesToday(this, group.packages) < group.limitMinutes) continue
-            Log.i(TAG, "stopping media: $pkg")
-            controller.transportControls.pause()
-            controller.transportControls.stop()
-        }
+        controllers.forEach(::stopIfOverLimit)
+    }
+
+    private fun stopIfOverLimit(controller: MediaController) {
+        val pkg = controller.packageName ?: return
+        if (!isOverLimit(pkg)) return
+        Log.i(TAG, "stopping media: $pkg")
+        controller.transportControls.pause()
+        controller.transportControls.stop()
+        watchSession(controller, pkg)
+    }
+
+    /**
+     * Attaches a callback that re-stops the session the moment it resumes, so
+     * tapping play on a stopped over-budget app (PiP included) just bounces back
+     * to stopped. Detaches itself once the app is no longer over budget (e.g.
+     * the next day) so playback is allowed again.
+     */
+    private fun watchSession(controller: MediaController, pkg: String) {
+        val token = controller.sessionToken
+        if (!watchedSessions.add(token)) return
+        controller.registerCallback(object : MediaController.Callback() {
+            override fun onPlaybackStateChanged(state: PlaybackState?) {
+                val playing = state?.state == PlaybackState.STATE_PLAYING ||
+                    state?.state == PlaybackState.STATE_BUFFERING
+                if (!playing) return
+                if (isOverLimit(pkg)) {
+                    controller.transportControls.pause()
+                    controller.transportControls.stop()
+                } else {
+                    controller.unregisterCallback(this)
+                    watchedSessions.remove(token)
+                }
+            }
+
+            override fun onSessionDestroyed() {
+                watchedSessions.remove(token)
+            }
+        }, handler)
     }
 
     private fun launchablePackages(): Set<String> {
@@ -188,6 +252,10 @@ class GuardService : AccessibilityService() {
 
     override fun onUnbind(intent: Intent?): Boolean {
         handler.removeCallbacks(limitPoll)
+        sessionsListener?.let {
+            getSystemService(MediaSessionManager::class.java)
+                ?.removeOnActiveSessionsChangedListener(it)
+        }
         return super.onUnbind(intent)
     }
 
