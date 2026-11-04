@@ -27,7 +27,7 @@
     <application
         android:label="Intentional"
         android:enableOnBackInvokedCallback="false"
-        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+        android:theme="@style/Theme.Intentional">
 
         <activity
             android:name=".MainActivity"

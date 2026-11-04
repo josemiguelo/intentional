@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Light (Tokyo Night day). The window shows this before Compose draws,
+         so it matches Palette.Day's background: no flash on launch. -->
+    <style name="Theme.Intentional" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+        <item name="android:windowBackground">#E1E2E7</item>
+    </style>
+</resources>

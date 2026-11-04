@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark (Tokyo Night night), matching Palette.Night's background. -->
+    <style name="Theme.Intentional" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">#1A1B26</item>
+    </style>
+</resources>

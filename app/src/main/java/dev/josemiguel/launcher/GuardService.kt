@@ -6,7 +6,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.graphics.Color
 import android.graphics.PixelFormat
 import android.media.session.MediaController
 import android.media.session.MediaSession
@@ -22,9 +21,11 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
+import androidx.compose.ui.graphics.toArgb
 import dev.josemiguel.launcher.guard.GuardBypass
 import dev.josemiguel.launcher.guard.GuardPolicy
 import dev.josemiguel.launcher.guard.ScreenInfo
+import dev.josemiguel.launcher.ui.Palette
 
 /**
  * The launcher's watchdog. It does three jobs, all triggered by foreground-app
@@ -275,7 +276,7 @@ class GuardService : AccessibilityService() {
         handler.removeCallbacks(hideShield)
         if (shield == null) {
             val view = View(this).apply {
-                setBackgroundColor(Color.BLACK)
+                setBackgroundColor(Palette.forSystem(this@GuardService).background.toArgb())
                 setOnTouchListener { _, _ -> true }
             }
             val params = WindowManager.LayoutParams(

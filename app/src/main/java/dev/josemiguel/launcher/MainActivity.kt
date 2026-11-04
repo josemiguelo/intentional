@@ -30,6 +30,7 @@ import dev.josemiguel.launcher.ui.AppOptionsDialog
 import dev.josemiguel.launcher.ui.BlockedScreen
 import dev.josemiguel.launcher.ui.GroupsScreen
 import dev.josemiguel.launcher.ui.HomeScreen
+import dev.josemiguel.launcher.ui.LauncherPalette
 import dev.josemiguel.launcher.ui.LauncherTheme
 import dev.josemiguel.launcher.ui.PauseScreen
 import dev.josemiguel.launcher.ui.ReflectionScreen
@@ -139,287 +140,289 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(LauncherTheme.background)
-                    .systemBarsPadding()
-            ) {
-                // Always consume back so the home screen never slides away as
-                // the system tries to background the launcher; on Home it's a
-                // deliberate no-op.
-                BackHandler(enabled = true) {
-                    screen = when (screen) {
-                        Screen.Home -> Screen.Home
-                        Screen.SettingsApps, Screen.Groups -> Screen.Settings
-                        else -> Screen.Home
+            LauncherPalette {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(LauncherTheme.background)
+                        .systemBarsPadding()
+                ) {
+                    // Always consume back so the home screen never slides away as
+                    // the system tries to background the launcher; on Home it's a
+                    // deliberate no-op.
+                    BackHandler(enabled = true) {
+                        screen = when (screen) {
+                            Screen.Home -> Screen.Home
+                            Screen.SettingsApps, Screen.Groups -> Screen.Settings
+                            else -> Screen.Home
+                        }
                     }
-                }
 
-                when (val s = screen) {
-                    Screen.Home -> HomeScreen(
-                        favorites = favorites.mapNotNull { pkg -> apps.find { it.packageName == pkg } },
-                        essentials = essentials,
-                        windDownEnabled = windDownEnabled,
-                        windDownStart = windDownStart,
-                        windDownEnd = windDownEnd,
-                        countsToday = countsToday,
-                        heldReadyCount = heldReady.size,
-                        needsListenerGrant = batched.isNotEmpty() && !listenerEnabled,
-                        isDefaultLauncher = isDefaultLauncher,
-                        onRequestDefault = ::requestDefaultLauncher,
-                        onOpenTray = {
-                            heldReady = HeldNotifications.ready(this@MainActivity)
-                            screen = Screen.Tray
-                        },
-                        onEnableFiltering = ::openListenerSettings,
-                        onOpenApp = ::requestOpen,
-                        onLongPressApp = { optionsFor = it },
-                        onReorder = { order ->
-                            prefs.favorites = order
-                            favorites = order
-                        },
-                        onOpenSearch = { screen = Screen.Search },
-                        onOpenReflection = { screen = Screen.Reflect },
-                        onOpenSettings = { screen = Screen.Settings },
-                    )
-
-                    Screen.Search -> SearchScreen(
-                        apps = apps,
-                        considered = considered,
-                        onOpenApp = ::requestOpen,
-                        onLongPressApp = { optionsFor = it },
-                    )
-
-                    Screen.Reflect -> {
-                        val installDate = java.time.Instant
-                            .ofEpochMilli(packageManager.getPackageInfo(packageName, 0).firstInstallTime)
-                            .atZone(java.time.ZoneId.systemDefault())
-                            .toLocalDate()
-                        ReflectionScreen(
-                            history = prefs.history(14)
-                                .filter { !it.date.isBefore(installDate) },
+                    when (val s = screen) {
+                        Screen.Home -> HomeScreen(
+                            favorites = favorites.mapNotNull { pkg -> apps.find { it.packageName == pkg } },
+                            essentials = essentials,
+                            windDownEnabled = windDownEnabled,
+                            windDownStart = windDownStart,
+                            windDownEnd = windDownEnd,
+                            countsToday = countsToday,
+                            heldReadyCount = heldReady.size,
+                            needsListenerGrant = batched.isNotEmpty() && !listenerEnabled,
+                            isDefaultLauncher = isDefaultLauncher,
+                            onRequestDefault = ::requestDefaultLauncher,
+                            onOpenTray = {
+                                heldReady = HeldNotifications.ready(this@MainActivity)
+                                screen = Screen.Tray
+                            },
+                            onEnableFiltering = ::openListenerSettings,
+                            onOpenApp = ::requestOpen,
+                            onLongPressApp = { optionsFor = it },
+                            onReorder = { order ->
+                                prefs.favorites = order
+                                favorites = order
+                            },
+                            onOpenSearch = { screen = Screen.Search },
+                            onOpenReflection = { screen = Screen.Reflect },
+                            onOpenSettings = { screen = Screen.Settings },
                         )
-                    }
 
-                    Screen.Tray -> TrayScreen(
-                        items = heldReady,
-                        appLabel = { pkg -> apps.find { it.packageName == pkg }?.label ?: pkg },
-                        onOpenApp = { pkg ->
-                            apps.find { it.packageName == pkg }?.let(::requestOpen)
-                        },
-                        onClearAll = {
-                            HeldNotifications.clearReady(this@MainActivity)
-                            heldReady = emptyList()
-                            screen = Screen.Home
-                        },
-                    )
+                        Screen.Search -> SearchScreen(
+                            apps = apps,
+                            considered = considered,
+                            onOpenApp = ::requestOpen,
+                            onLongPressApp = { optionsFor = it },
+                        )
 
-                    Screen.Settings -> SettingsScreen(
-                        windDownEnabled = windDownEnabled,
-                        windDownStart = windDownStart,
-                        windDownEnd = windDownEnd,
-                        pauseSeconds = pauseSeconds,
-                        longPauseSeconds = longPauseSeconds,
-                        dropTimes = dropTimes,
-                        isDefaultLauncher = isDefaultLauncher,
-                        usageAccessGranted = usageAccessGranted,
-                        listenerEnabled = listenerEnabled,
-                        guardEnabled = guardEnabled,
-                        uninstallProtected = uninstallProtected,
-                        onToggleUninstallProtection = ::toggleUninstallProtection,
-                        onOpenAccessibility = {
-                            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                        },
-                        onOpenApps = { screen = Screen.SettingsApps },
-                        onOpenGroups = { screen = Screen.Groups },
-                        onToggleWindDown = {
-                            prefs.windDownEnabled = !windDownEnabled
-                            windDownEnabled = prefs.windDownEnabled
-                        },
-                        onSetWindDownStart = {
-                            prefs.windDownStart = it
-                            windDownStart = prefs.windDownStart
-                        },
-                        onSetWindDownEnd = {
-                            prefs.windDownEnd = it
-                            windDownEnd = prefs.windDownEnd
-                        },
-                        onSetPauseSeconds = {
-                            prefs.pauseSeconds = it
-                            pauseSeconds = prefs.pauseSeconds
-                        },
-                        onSetLongPauseSeconds = {
-                            prefs.longPauseSeconds = it
-                            longPauseSeconds = prefs.longPauseSeconds
-                        },
-                        onSetDropTimes = {
-                            prefs.dropTimes = it
-                            dropTimes = prefs.dropTimes
-                            DropScheduler.scheduleNext(this@MainActivity)
-                        },
-                        exactAlarmsAllowed = exactAlarmsAllowed,
-                        onGrantExactAlarm = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                startActivity(
-                                    Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
-                                )
-                            }
-                        },
-                        onRequestDefault = ::requestDefaultLauncher,
-                        onGrantUsage = {
-                            startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
-                        },
-                        onGrantListener = ::openListenerSettings,
-                        onClearHeld = {
-                            HeldNotifications.clearAll(this@MainActivity)
-                            heldReady = emptyList()
-                        },
-                        onResetToday = {
-                            prefs.resetToday()
-                            countsToday = prefs.countsToday()
-                        },
-                    )
+                        Screen.Reflect -> {
+                            val installDate = java.time.Instant
+                                .ofEpochMilli(packageManager.getPackageInfo(packageName, 0).firstInstallTime)
+                                .atZone(java.time.ZoneId.systemDefault())
+                                .toLocalDate()
+                            ReflectionScreen(
+                                history = prefs.history(14)
+                                    .filter { !it.date.isBefore(installDate) },
+                            )
+                        }
 
-                    Screen.SettingsApps -> SettingsAppsScreen(
-                        apps = apps,
-                        favorites = favorites,
-                        considered = considered,
-                        essentials = essentials,
-                        batched = batched,
-                        frictionVersion = frictionVersion,
-                        frictionFor = { prefs.frictionFor(it) },
-                        groupNames = prefs.groups.map { it.name },
-                        groupNameOf = { prefs.groupOf(it)?.name },
-                        onAssignGroup = { pkg, groupName ->
-                            prefs.assignToGroup(pkg, groupName)
-                            frictionVersion++
-                        },
-                        onToggleFavorite = {
-                            prefs.toggleFavorite(it)
-                            favorites = prefs.favorites
-                        },
-                        onToggleConsidered = {
-                            prefs.toggleConsidered(it)
-                            considered = prefs.considered
-                            batched = prefs.batched
-                        },
-                        onToggleEssential = {
-                            prefs.toggleEssential(it)
-                            essentials = prefs.essentials
-                        },
-                        onToggleBatched = {
-                            prefs.toggleBatched(it)
-                            batched = prefs.batched
-                        },
-                        onCycleFriction = {
-                            prefs.cycleFriction(it)
-                            frictionVersion++
-                        },
-                    )
+                        Screen.Tray -> TrayScreen(
+                            items = heldReady,
+                            appLabel = { pkg -> apps.find { it.packageName == pkg }?.label ?: pkg },
+                            onOpenApp = { pkg ->
+                                apps.find { it.packageName == pkg }?.let(::requestOpen)
+                            },
+                            onClearAll = {
+                                HeldNotifications.clearReady(this@MainActivity)
+                                heldReady = emptyList()
+                                screen = Screen.Home
+                            },
+                        )
 
-                    Screen.Groups -> GroupsScreen(
-                        groups = groupsVersion.let { prefs.groups },
-                        canChangeLimit = { prefs.canChangeGroupLimit(it) },
-                        daysUntilChangeable = { prefs.daysUntilChangeable(it) },
-                        isOverBudget = ::isOverBudget,
-                        usageToday = {
-                            UsageStatsRepository.groupMinutesToday(this@MainActivity, it.packages) to
-                                UsageStatsRepository.groupSiteMinutes(this@MainActivity, it)
-                        },
-                        onAddGroup = { prefs.addGroup(it); groupsVersion++ },
-                        onDeleteGroup = {
-                            prefs.deleteGroup(it)
-                            groupsVersion++
-                            syncSiteVpn(askConsent = false)
-                        },
-                        onSetLimit = { name, minutes ->
-                            prefs.setGroupLimit(name, minutes)
-                            groupsVersion++
-                        },
-                        onAddSite = { name, site ->
-                            prefs.assignSiteToGroup(site, name).also { added ->
-                                if (added) {
-                                    groupsVersion++
-                                    syncSiteVpn(askConsent = true)
+                        Screen.Settings -> SettingsScreen(
+                            windDownEnabled = windDownEnabled,
+                            windDownStart = windDownStart,
+                            windDownEnd = windDownEnd,
+                            pauseSeconds = pauseSeconds,
+                            longPauseSeconds = longPauseSeconds,
+                            dropTimes = dropTimes,
+                            isDefaultLauncher = isDefaultLauncher,
+                            usageAccessGranted = usageAccessGranted,
+                            listenerEnabled = listenerEnabled,
+                            guardEnabled = guardEnabled,
+                            uninstallProtected = uninstallProtected,
+                            onToggleUninstallProtection = ::toggleUninstallProtection,
+                            onOpenAccessibility = {
+                                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                            },
+                            onOpenApps = { screen = Screen.SettingsApps },
+                            onOpenGroups = { screen = Screen.Groups },
+                            onToggleWindDown = {
+                                prefs.windDownEnabled = !windDownEnabled
+                                windDownEnabled = prefs.windDownEnabled
+                            },
+                            onSetWindDownStart = {
+                                prefs.windDownStart = it
+                                windDownStart = prefs.windDownStart
+                            },
+                            onSetWindDownEnd = {
+                                prefs.windDownEnd = it
+                                windDownEnd = prefs.windDownEnd
+                            },
+                            onSetPauseSeconds = {
+                                prefs.pauseSeconds = it
+                                pauseSeconds = prefs.pauseSeconds
+                            },
+                            onSetLongPauseSeconds = {
+                                prefs.longPauseSeconds = it
+                                longPauseSeconds = prefs.longPauseSeconds
+                            },
+                            onSetDropTimes = {
+                                prefs.dropTimes = it
+                                dropTimes = prefs.dropTimes
+                                DropScheduler.scheduleNext(this@MainActivity)
+                            },
+                            exactAlarmsAllowed = exactAlarmsAllowed,
+                            onGrantExactAlarm = {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                    startActivity(
+                                        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                                    )
                                 }
-                            }
-                        },
-                        onRemoveSite = { name, domain ->
-                            prefs.removeSite(name, domain)
-                            groupsVersion++
-                            syncSiteVpn(askConsent = false)
-                        },
-                    )
+                            },
+                            onRequestDefault = ::requestDefaultLauncher,
+                            onGrantUsage = {
+                                startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                            },
+                            onGrantListener = ::openListenerSettings,
+                            onClearHeld = {
+                                HeldNotifications.clearAll(this@MainActivity)
+                                heldReady = emptyList()
+                            },
+                            onResetToday = {
+                                prefs.resetToday()
+                                countsToday = prefs.countsToday()
+                            },
+                        )
 
-                    is Screen.Blocked -> {
-                        val group = prefs.groupOf(s.app.packageName)
-                        BlockedScreen(
-                            groupName = group?.name ?: "",
-                            limitMinutes = group?.limitMinutes ?: 0,
-                            onClose = { screen = Screen.Home },
+                        Screen.SettingsApps -> SettingsAppsScreen(
+                            apps = apps,
+                            favorites = favorites,
+                            considered = considered,
+                            essentials = essentials,
+                            batched = batched,
+                            frictionVersion = frictionVersion,
+                            frictionFor = { prefs.frictionFor(it) },
+                            groupNames = prefs.groups.map { it.name },
+                            groupNameOf = { prefs.groupOf(it)?.name },
+                            onAssignGroup = { pkg, groupName ->
+                                prefs.assignToGroup(pkg, groupName)
+                                frictionVersion++
+                            },
+                            onToggleFavorite = {
+                                prefs.toggleFavorite(it)
+                                favorites = prefs.favorites
+                            },
+                            onToggleConsidered = {
+                                prefs.toggleConsidered(it)
+                                considered = prefs.considered
+                                batched = prefs.batched
+                            },
+                            onToggleEssential = {
+                                prefs.toggleEssential(it)
+                                essentials = prefs.essentials
+                            },
+                            onToggleBatched = {
+                                prefs.toggleBatched(it)
+                                batched = prefs.batched
+                            },
+                            onCycleFriction = {
+                                prefs.cycleFriction(it)
+                                frictionVersion++
+                            },
+                        )
+
+                        Screen.Groups -> GroupsScreen(
+                            groups = groupsVersion.let { prefs.groups },
+                            canChangeLimit = { prefs.canChangeGroupLimit(it) },
+                            daysUntilChangeable = { prefs.daysUntilChangeable(it) },
+                            isOverBudget = ::isOverBudget,
+                            usageToday = {
+                                UsageStatsRepository.groupMinutesToday(this@MainActivity, it.packages) to
+                                    UsageStatsRepository.groupSiteMinutes(this@MainActivity, it)
+                            },
+                            onAddGroup = { prefs.addGroup(it); groupsVersion++ },
+                            onDeleteGroup = {
+                                prefs.deleteGroup(it)
+                                groupsVersion++
+                                syncSiteVpn(askConsent = false)
+                            },
+                            onSetLimit = { name, minutes ->
+                                prefs.setGroupLimit(name, minutes)
+                                groupsVersion++
+                            },
+                            onAddSite = { name, site ->
+                                prefs.assignSiteToGroup(site, name).also { added ->
+                                    if (added) {
+                                        groupsVersion++
+                                        syncSiteVpn(askConsent = true)
+                                    }
+                                }
+                            },
+                            onRemoveSite = { name, domain ->
+                                prefs.removeSite(name, domain)
+                                groupsVersion++
+                                syncSiteVpn(askConsent = false)
+                            },
+                        )
+
+                        is Screen.Blocked -> {
+                            val group = prefs.groupOf(s.app.packageName)
+                            BlockedScreen(
+                                groupName = group?.name ?: "",
+                                limitMinutes = group?.limitMinutes ?: 0,
+                                onClose = { screen = Screen.Home },
+                            )
+                        }
+
+                        is Screen.Pause -> PauseScreen(
+                            app = s.app,
+                            group = if (usageAccessGranted) prefs.groupOf(s.app.packageName) else null,
+                            friction = prefs.frictionFor(s.app.packageName),
+                            windDown = windDownActive(),
+                            windDownEndLabel = windDownEnd.toString(),
+                            baseSeconds = pauseSeconds,
+                            longSeconds = longPauseSeconds,
+                            onOpen = { openOrBlock(s.app) },
+                            onClose = {
+                                prefs.incrementPausedClosed()
+                                countsToday = prefs.countsToday()
+                                screen = Screen.Home
+                            },
                         )
                     }
 
-                    is Screen.Pause -> PauseScreen(
-                        app = s.app,
-                        group = if (usageAccessGranted) prefs.groupOf(s.app.packageName) else null,
-                        friction = prefs.frictionFor(s.app.packageName),
-                        windDown = windDownActive(),
-                        windDownEndLabel = windDownEnd.toString(),
-                        baseSeconds = pauseSeconds,
-                        longSeconds = longPauseSeconds,
-                        onOpen = { openOrBlock(s.app) },
-                        onClose = {
-                            prefs.incrementPausedClosed()
-                            countsToday = prefs.countsToday()
-                            screen = Screen.Home
-                        },
-                    )
-                }
-
-                optionsFor?.let { app ->
-                    AppOptionsDialog(
-                        app = app,
-                        isFavorite = app.packageName in favorites,
-                        isConsidered = app.packageName in considered,
-                        isEssential = app.packageName in essentials,
-                        frictionLabel = frictionVersion.let { prefs.frictionFor(app.packageName).label },
-                        onToggleEssential = {
-                            prefs.toggleEssential(app.packageName)
-                            essentials = prefs.essentials
-                        },
-                        onCycleFriction = {
-                            prefs.cycleFriction(app.packageName)
-                            frictionVersion++
-                        },
-                        onToggleFavorite = {
-                            prefs.toggleFavorite(app.packageName)
-                            favorites = prefs.favorites
-                        },
-                        onToggleConsidered = {
-                            prefs.toggleConsidered(app.packageName)
-                            considered = prefs.considered
-                            batched = prefs.batched
-                        },
-                        onAppInfo = {
-                            startActivity(
-                                Intent(
-                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                    Uri.fromParts("package", app.packageName, null),
+                    optionsFor?.let { app ->
+                        AppOptionsDialog(
+                            app = app,
+                            isFavorite = app.packageName in favorites,
+                            isConsidered = app.packageName in considered,
+                            isEssential = app.packageName in essentials,
+                            frictionLabel = frictionVersion.let { prefs.frictionFor(app.packageName).label },
+                            onToggleEssential = {
+                                prefs.toggleEssential(app.packageName)
+                                essentials = prefs.essentials
+                            },
+                            onCycleFriction = {
+                                prefs.cycleFriction(app.packageName)
+                                frictionVersion++
+                            },
+                            onToggleFavorite = {
+                                prefs.toggleFavorite(app.packageName)
+                                favorites = prefs.favorites
+                            },
+                            onToggleConsidered = {
+                                prefs.toggleConsidered(app.packageName)
+                                considered = prefs.considered
+                                batched = prefs.batched
+                            },
+                            onAppInfo = {
+                                startActivity(
+                                    Intent(
+                                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                        Uri.fromParts("package", app.packageName, null),
+                                    )
                                 )
-                            )
-                        },
-                        onUninstall = {
-                            startActivity(
-                                Intent(
-                                    Intent.ACTION_DELETE,
-                                    Uri.fromParts("package", app.packageName, null),
+                            },
+                            onUninstall = {
+                                startActivity(
+                                    Intent(
+                                        Intent.ACTION_DELETE,
+                                        Uri.fromParts("package", app.packageName, null),
+                                    )
                                 )
-                            )
-                        },
-                        onDismiss = { optionsFor = null },
-                    )
+                            },
+                            onDismiss = { optionsFor = null },
+                        )
+                    }
                 }
             }
         }
