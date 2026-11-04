@@ -149,6 +149,31 @@ Known gaps: names resolved before a block stay cached for their TTL (usually a
 few minutes); open connections survive until they close; browsers inside Secure
 Folder and browsers doing their own encrypted DNS (e.g. Firefox) aren't covered.
 
+## 10. Wallpapers (optional)
+
+The launcher follows the system's dark/light mode with Tokyo Night's night and
+day palettes. Home and the app drawer can show a wallpaper per mode, read from
+the app's private files; without them the screens stay plain. The images aren't
+in this repo — they're third-party art (e.g. Omarchy's theme backgrounds) — so
+crop them to the screen and push them per phone:
+
+```sh
+# e.g. 1080x2340: Omarchy's tokyo-night/0-liftoff for dark, catppuccin-latte/1-color-fade for light.
+# Dark: zoomed out to ~53% of the screen height, centred, with night background
+# above and below and the image's top and bottom edges faded into it:
+magick dark-source.webp -resize x1250 -gravity center -crop 1080x1250+0+0 +repage \
+  \( -size 1080x1250 gradient:black-white -fx "u<0.08?u/0.08:(u>0.92?(1-u)/0.08:1)" \) -alpha off -compose CopyOpacity -composite \
+  -background '#1a1b26' -compose Over -gravity center -extent 1080x2340 -flatten -quality 85 wallpaper-dark.webp
+# Light: fills the screen, cropped to the image's middle:
+magick light-source.webp -resize x2340 -gravity center -crop 1080x2340+0+0 +repage -quality 85 wallpaper-light.webp
+for f in wallpaper-dark.webp wallpaper-light.webp; do
+  adb exec-in run-as dev.josemiguel.launcher sh -c "mkdir -p files && cat > files/$f" < $f
+done
+```
+
+`run-as` needs the debug build. The files are app data: a reinstall with
+`install -r` keeps them; uninstalling removes them.
+
 ## After every reinstall
 
 `adb install -r` keeps app data but **resets these**, so redo them:

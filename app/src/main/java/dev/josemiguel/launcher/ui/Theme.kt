@@ -26,6 +26,10 @@ data class Palette(
     val ink: Color,
     val muted: Color,
     val faint: Color,
+    /** Opacity of the background laid over the wallpaper on home, so text stays readable. */
+    val homeVeil: Float,
+    /** The same over the app drawer: nearly opaque, the wallpaper only hinted at. */
+    val drawerVeil: Float,
 ) {
     companion object {
         /** Tokyo Night "night": bg, bg_highlight, fg, dark5, terminal_black. */
@@ -35,6 +39,8 @@ data class Palette(
             ink = Color(0xFFC0CAF5),
             muted = Color(0xFF737AA2),
             faint = Color(0xFF414868),
+            homeVeil = 0.72f,
+            drawerVeil = 0.88f,
         )
 
         /** Tokyo Night "day", the same roles. */
@@ -44,6 +50,8 @@ data class Palette(
             ink = Color(0xFF3760BF),
             muted = Color(0xFF68709A),
             faint = Color(0xFFA1A6C5),
+            homeVeil = 0.35f,
+            drawerVeil = 0.85f,
         )
 
         /** The palette for the system's current dark/light setting, outside Compose. */
@@ -71,6 +79,8 @@ object LauncherTheme {
     val ink: Color @Composable @ReadOnlyComposable get() = LocalPalette.current.ink
     val muted: Color @Composable @ReadOnlyComposable get() = LocalPalette.current.muted
     val faint: Color @Composable @ReadOnlyComposable get() = LocalPalette.current.faint
+    val homeVeil: Float @Composable @ReadOnlyComposable get() = LocalPalette.current.homeVeil
+    val drawerVeil: Float @Composable @ReadOnlyComposable get() = LocalPalette.current.drawerVeil
 
     /** Home hero only. */
     val clock: TextStyle @Composable @ReadOnlyComposable get() = mono(52.sp, 58.sp, ink)
