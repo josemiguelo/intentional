@@ -147,6 +147,23 @@ class Prefs(context: Context) {
         }
     }
 
+    /** The group whose sites cover [host] (a site or any subdomain of it). */
+    fun groupOfSite(host: String): AppGroup? =
+        groups.firstOrNull { g -> g.sites.any { host == it || host.endsWith(".$it") } }
+
+    /**
+     * Moves a site (typed as a domain or pasted as a URL) into [groupName], or
+     * out of every group if null. Returns false if it isn't a valid domain.
+     */
+    fun assignSiteToGroup(site: String, groupName: String?): Boolean {
+        val domain = SiteTracker.hostOf(site) ?: return false
+        groups = groups.map { g ->
+            val without = g.sites - domain
+            if (g.name == groupName) g.copy(sites = without + domain) else g.copy(sites = without)
+        }
+        return true
+    }
+
     fun canChangeGroupLimit(group: AppGroup): Boolean =
         System.currentTimeMillis() - group.limitChangedAt >= LIMIT_CHANGE_COOLDOWN_MS
 

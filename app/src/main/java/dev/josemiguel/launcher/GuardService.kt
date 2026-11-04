@@ -263,7 +263,7 @@ class GuardService : AccessibilityService() {
 
     private fun isOverLimit(pkg: String): Boolean {
         val group = Prefs(this).groupOf(pkg) ?: return false
-        val used = UsageStatsRepository.groupMinutesToday(this, group.packages)
+        val used = UsageStatsRepository.groupUsedMinutes(this, group)
         return used >= group.limitMinutes
     }
 

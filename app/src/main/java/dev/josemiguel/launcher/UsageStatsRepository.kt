@@ -68,6 +68,13 @@ object UsageStatsRepository {
         return AppUsageToday(opens, opensLastHour, foregroundMs / 60_000)
     }
 
+    /** A group's whole budget use today: its apps' foreground time plus its sites' on-screen time. */
+    fun groupUsedMinutes(context: Context, group: AppGroup): Long {
+        val prefs = Prefs(context)
+        val siteMs = group.sites.sumOf(prefs::siteTimeToday)
+        return groupMinutesToday(context, group.packages) + siteMs / 60_000
+    }
+
     /**
      * Total foreground minutes today across all [packages], in a single pass —
      * the shared usage of an app group counted against its budget.

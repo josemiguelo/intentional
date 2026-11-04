@@ -100,7 +100,7 @@ fun PauseScreen(
         if (hasUsageAccess) {
             value = withContext(Dispatchers.IO) {
                 if (group != null) {
-                    val used = UsageStatsRepository.groupMinutesToday(context, group.packages)
+                    val used = UsageStatsRepository.groupUsedMinutes(context, group)
                     val left = (group.limitMinutes - used).coerceAtLeast(0)
                     if (left <= 0) listOf("no ${group.name.lowercase()} time left today")
                     else listOf("$left min left", "in ${group.name.lowercase()} today")

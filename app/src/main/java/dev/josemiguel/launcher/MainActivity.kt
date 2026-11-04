@@ -491,7 +491,7 @@ class MainActivity : ComponentActivity() {
 
     private fun isOverLimit(packageName: String): Boolean {
         val group = prefs.groupOf(packageName) ?: return false
-        val used = UsageStatsRepository.groupMinutesToday(this, group.packages)
+        val used = UsageStatsRepository.groupUsedMinutes(this, group)
         return used >= group.limitMinutes
     }
 
