@@ -59,7 +59,7 @@ fun SearchScreen(
         modifier = Modifier
             .fillMaxSize()
             .imePadding()
-            .padding(horizontal = 28.dp, vertical = 24.dp)
+            .padding(horizontal = 20.dp, vertical = 18.dp)
     ) {
         Box(Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
             if (query.isEmpty()) {

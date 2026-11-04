@@ -3,9 +3,7 @@ package dev.josemiguel.launcher.ui
 import android.content.Context
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,14 +18,14 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * The wallpaper behind home and the app drawer, one per theme, under a veil of
- * the theme's own background ([veil] opacity) so the text stays readable. The
- * images aren't bundled — they're third-party art (Omarchy's theme
+ * The wallpaper behind home, the drawer and settings, one per theme, shown at
+ * full strength: the panels on top carry their own glass. The images aren't
+ * bundled — they're third-party art (Omarchy's theme
  * backgrounds), pushed into the app's private files per phone (see
  * docs/SETUP.md). Without a file the screen stays plain.
  */
 @Composable
-fun Wallpaper(veil: Float) {
+fun Wallpaper() {
     val context = LocalContext.current
     val dark = isSystemInDarkTheme()
     val image by produceState<ImageBitmap?>(null, dark) {
@@ -35,7 +33,6 @@ fun Wallpaper(veil: Float) {
     }
     val bitmap = image ?: return
     Image(bitmap, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-    Box(Modifier.fillMaxSize().background(LauncherTheme.background.copy(alpha = veil)))
 }
 
 /** `files/wallpaper-dark.webp` or `files/wallpaper-light.webp`, or null when absent. */

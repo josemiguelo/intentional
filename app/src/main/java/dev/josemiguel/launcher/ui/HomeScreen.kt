@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,7 +41,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 private val TIME = DateTimeFormatter.ofPattern("HH:mm")
-private val DATE = DateTimeFormatter.ofPattern("EEE, MMM d", Locale.ENGLISH)
+private val DATE = DateTimeFormatter.ofPattern("EEEE · MMMM d", Locale.ENGLISH)
 
 /** Below this much total finger movement, a long-press release opens the options dialog. */
 private const val TAP_SLOP_PX = 14f
@@ -75,6 +76,8 @@ fun HomeScreen(
         }
     }
 
+    // Omarchy's tiling: clock, favorites and today each in their own panel,
+    // the wallpaper showing in the gaps. Swiping up opens the drawer.
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -86,44 +89,37 @@ fun HomeScreen(
                     onDragEnd = { if (dragged < -120f) onOpenSearch() },
                 )
             }
-            .padding(horizontal = 28.dp, vertical = 24.dp)
+            .padding(PanelGap),
+        verticalArrangement = Arrangement.spacedBy(PanelGap),
     ) {
         val windDown = windDownEnabled &&
             WindDown.isActive(windDownStart, windDownEnd, now.toLocalTime())
 
-        Text(
-            now.format(TIME),
-            style = LauncherTheme.clock,
-            modifier = Modifier.combinedClickable(
-                onClick = {},
-                onLongClick = onOpenSettings,
-            ),
-        )
-        Text(now.format(DATE), style = LauncherTheme.body)
-        if (windDown) {
+        Column(Modifier.fillMaxWidth().panel()) {
             Text(
-                "wind-down · until $windDownEnd",
-                style = LauncherTheme.body.copy(color = LauncherTheme.faint),
+                now.format(TIME),
+                style = LauncherTheme.clock,
+                modifier = Modifier.combinedClickable(
+                    onClick = {},
+                    onLongClick = onOpenSettings,
+                ),
             )
-        }
-
-        if (!isDefaultLauncher) {
-            Text(
-                "→ set as default launcher",
-                style = LauncherTheme.body,
-                modifier = Modifier
-                    .clickable(onClick = onRequestDefault)
-                    .padding(top = 16.dp),
-            )
-        }
-
-        Spacer(Modifier.height(48.dp))
-
-        if (favorites.isEmpty()) {
-            Text(
-                "swipe up, then long-press an app to add it here",
-                style = LauncherTheme.caption,
-            )
+            Text(now.format(DATE).lowercase(), style = LauncherTheme.body.copy(color = LauncherTheme.accent))
+            if (windDown) {
+                Text(
+                    "wind-down · until $windDownEnd",
+                    style = LauncherTheme.body.copy(color = LauncherTheme.faint),
+                )
+            }
+            if (!isDefaultLauncher) {
+                Text(
+                    "→ set as default launcher",
+                    style = LauncherTheme.body,
+                    modifier = Modifier
+                        .clickable(onClick = onRequestDefault)
+                        .padding(top = 16.dp),
+                )
+            }
         }
 
         val shownFavorites =
@@ -131,47 +127,49 @@ fun HomeScreen(
                 favorites.filter { it.packageName in essentials }
             } else favorites
 
-        FavoritesList(
-            favorites = shownFavorites,
-            onOpenApp = onOpenApp,
-            onLongPressApp = onLongPressApp,
-            onReorder = onReorder,
-        )
+        Column(Modifier.fillMaxWidth().panel()) {
+            if (favorites.isEmpty()) {
+                Text(
+                    "swipe up, then long-press an app to add it here",
+                    style = LauncherTheme.caption,
+                )
+            }
+            FavoritesList(
+                favorites = shownFavorites,
+                onOpenApp = onOpenApp,
+                onLongPressApp = onLongPressApp,
+                onReorder = onReorder,
+            )
+        }
 
         Spacer(Modifier.weight(1f))
 
-        if (heldReadyCount > 0) {
+        Column(Modifier.fillMaxWidth().panel()) {
+            if (heldReadyCount > 0) {
+                Text(
+                    "→ $heldReadyCount notifications waiting",
+                    style = LauncherTheme.body,
+                    modifier = Modifier
+                        .clickable(onClick = onOpenTray)
+                        .padding(bottom = 10.dp),
+                )
+            }
+            if (needsListenerGrant) {
+                Text(
+                    "→ enable notification filtering",
+                    style = LauncherTheme.caption,
+                    modifier = Modifier
+                        .clickable(onClick = onEnableFiltering)
+                        .padding(bottom = 10.dp),
+                )
+            }
+            val (intentional, paused) = countsToday
             Text(
-                "→ $heldReadyCount notifications waiting",
+                "$intentional intentional · $paused paused-and-closed",
                 style = LauncherTheme.body,
-                modifier = Modifier
-                    .clickable(onClick = onOpenTray)
-                    .padding(bottom = 10.dp),
+                modifier = Modifier.clickable(onClick = onOpenReflection),
             )
         }
-        if (needsListenerGrant) {
-            Text(
-                "→ enable notification filtering",
-                style = LauncherTheme.caption,
-                modifier = Modifier
-                    .clickable(onClick = onEnableFiltering)
-                    .padding(bottom = 10.dp),
-            )
-        }
-
-        val (intentional, paused) = countsToday
-        Text(
-            "$intentional intentional · $paused paused-and-closed",
-            style = LauncherTheme.body,
-            modifier = Modifier.clickable(onClick = onOpenReflection),
-        )
-        Text(
-            "↑ swipe to search",
-            style = LauncherTheme.body.copy(color = LauncherTheme.faint),
-            modifier = Modifier
-                .clickable(onClick = onOpenSearch)
-                .padding(top = 6.dp),
-        )
     }
 }
 

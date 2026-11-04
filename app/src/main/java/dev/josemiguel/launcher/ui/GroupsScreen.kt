@@ -55,7 +55,7 @@ fun GroupsScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 28.dp, vertical = 24.dp)
+            .padding(horizontal = 20.dp, vertical = 18.dp)
     ) {
         Text("groups", style = LauncherTheme.title)
         Spacer(Modifier.height(8.dp))

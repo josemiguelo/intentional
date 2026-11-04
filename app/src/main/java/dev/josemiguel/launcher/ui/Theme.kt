@@ -15,9 +15,9 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 
 /**
- * The five shades the launcher draws with. Taken from Tokyo Night's base
- * colors only (folke/tokyonight.nvim, extras/lua) — none of its accents, so
- * nothing on screen asks for a glance.
+ * The colors the launcher draws with, from Tokyo Night (folke/tokyonight.nvim,
+ * extras/lua): its base shades plus one accent, the blue Omarchy uses for
+ * headings and outlines. No icons, nothing else colored.
  */
 @Immutable
 data class Palette(
@@ -26,32 +26,32 @@ data class Palette(
     val ink: Color,
     val muted: Color,
     val faint: Color,
-    /** Opacity of the background laid over the wallpaper on home, so text stays readable. */
-    val homeVeil: Float,
-    /** The same over the app drawer: nearly opaque, the wallpaper only hinted at. */
-    val drawerVeil: Float,
+    /** Headings and the date: Tokyo Night's blue, the one accent (Omarchy's). */
+    val accent: Color,
+    /** Panel outlines. */
+    val border: Color,
 ) {
     companion object {
-        /** Tokyo Night "night": bg, bg_highlight, fg, dark5, terminal_black. */
+        /** Tokyo Night "night": bg, bg_highlight, fg, dark5, terminal_black; blue, terminal_black. */
         val Night = Palette(
             background = Color(0xFF1A1B26),
             panel = Color(0xFF292E42),
             ink = Color(0xFFC0CAF5),
             muted = Color(0xFF737AA2),
             faint = Color(0xFF414868),
-            homeVeil = 0.72f,
-            drawerVeil = 0.88f,
+            accent = Color(0xFF7AA2F7),
+            border = Color(0xFF414868),
         )
 
-        /** Tokyo Night "day", the same roles. */
+        /** Tokyo Night "day", the same roles; blue, fg_gutter. */
         val Day = Palette(
             background = Color(0xFFE1E2E7),
             panel = Color(0xFFC4C8DA),
             ink = Color(0xFF3760BF),
             muted = Color(0xFF68709A),
             faint = Color(0xFFA1A6C5),
-            homeVeil = 0.35f,
-            drawerVeil = 0.85f,
+            accent = Color(0xFF2E7DE9),
+            border = Color(0xFFA8AECB),
         )
 
         /** The palette for the system's current dark/light setting, outside Compose. */
@@ -72,20 +72,20 @@ fun LauncherPalette(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalPalette provides palette, content = content)
 }
 
-/** Deliberately monochrome: no accent, no icons, nothing that asks for a glance. */
+/** Omarchy-style: monospace, one accent, framed panels over the wallpaper (see [panel]). */
 object LauncherTheme {
     val background: Color @Composable @ReadOnlyComposable get() = LocalPalette.current.background
     val panel: Color @Composable @ReadOnlyComposable get() = LocalPalette.current.panel
     val ink: Color @Composable @ReadOnlyComposable get() = LocalPalette.current.ink
     val muted: Color @Composable @ReadOnlyComposable get() = LocalPalette.current.muted
     val faint: Color @Composable @ReadOnlyComposable get() = LocalPalette.current.faint
-    val homeVeil: Float @Composable @ReadOnlyComposable get() = LocalPalette.current.homeVeil
-    val drawerVeil: Float @Composable @ReadOnlyComposable get() = LocalPalette.current.drawerVeil
+    val accent: Color @Composable @ReadOnlyComposable get() = LocalPalette.current.accent
+    val border: Color @Composable @ReadOnlyComposable get() = LocalPalette.current.border
 
     /** Home hero only. */
     val clock: TextStyle @Composable @ReadOnlyComposable get() = mono(52.sp, 58.sp, ink)
     /** Screen titles and single anchor words. */
-    val title: TextStyle @Composable @ReadOnlyComposable get() = mono(28.sp, 36.sp, ink)
+    val title: TextStyle @Composable @ReadOnlyComposable get() = mono(28.sp, 36.sp, accent)
     /** Tappable list rows, buttons, pause stats. */
     val item: TextStyle @Composable @ReadOnlyComposable get() = mono(22.sp, 30.sp, ink)
     /** Prose, questions, settings rows. */

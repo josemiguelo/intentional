@@ -85,7 +85,7 @@ fun SettingsAppsScreen(
         modifier = Modifier
             .fillMaxSize()
             .imePadding()
-            .padding(horizontal = 28.dp, vertical = 24.dp)
+            .padding(horizontal = 20.dp, vertical = 18.dp)
     ) {
         Text("apps", style = LauncherTheme.title)
 
