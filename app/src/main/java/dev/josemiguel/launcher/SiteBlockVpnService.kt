@@ -259,8 +259,15 @@ class SiteBlockVpnService : VpnService() {
 
         @Volatile private var instance: SiteBlockVpnService? = null
 
+        /** Whether the tun is up in this process. */
+        val isRunning: Boolean get() = instance?.tun != null
+
         fun start(context: Context) {
             context.startService(Intent(context, SiteBlockVpnService::class.java))
+        }
+
+        fun stop(context: Context) {
+            context.startService(Intent(context, SiteBlockVpnService::class.java).setAction(ACTION_STOP))
         }
 
         /** Re-evaluates budgets now — the guard calls this the moment it blocks something. */

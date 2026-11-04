@@ -27,20 +27,29 @@ import dev.josemiguel.launcher.AppGroup
 import dev.josemiguel.launcher.Prefs
 
 /**
- * Create app groups and set each one's shared daily budget. Budgets change
- * only once a week; a locked group shows the days remaining.
+ * Create groups of apps and websites and set each one's shared daily budget.
+ * Budgets change only once a week; a locked group shows the days remaining.
+ * While a group is over budget its sites can't be removed, nor the group
+ * deleted — either would just undo today's block.
  */
 @Composable
 fun GroupsScreen(
     groups: List<AppGroup>,
     canChangeLimit: (AppGroup) -> Boolean,
     daysUntilChangeable: (AppGroup) -> Int,
+    isOverBudget: (AppGroup) -> Boolean,
+    /** Today's (app minutes, site minutes) for a group. */
+    usageToday: (AppGroup) -> Pair<Long, Long>,
     onAddGroup: (String) -> Unit,
     onDeleteGroup: (String) -> Unit,
     onSetLimit: (String, Int) -> Unit,
+    /** Adds a typed domain or pasted URL; false if it isn't one. */
+    onAddSite: (String, String) -> Boolean,
+    onRemoveSite: (String, String) -> Unit,
 ) {
     var adding by remember { mutableStateOf(false) }
     var editingLimit by remember { mutableStateOf<AppGroup?>(null) }
+    var addingSiteTo by remember { mutableStateOf<AppGroup?>(null) }
 
     Column(
         modifier = Modifier
@@ -51,8 +60,9 @@ fun GroupsScreen(
         Text("groups", style = LauncherTheme.title)
         Spacer(Modifier.height(8.dp))
         Text(
-            "apps in a group share one daily budget. a budget can be changed " +
-                "only once a week.",
+            "apps and sites in a group share one daily budget. a budget can be " +
+                "changed only once a week; while a group is over budget, its sites " +
+                "can't be removed until tomorrow.",
             style = LauncherTheme.caption.copy(color = LauncherTheme.faint),
         )
         Spacer(Modifier.height(16.dp))
@@ -63,6 +73,8 @@ fun GroupsScreen(
 
         groups.forEach { group ->
             val changeable = canChangeLimit(group)
+            val over = isOverBudget(group)
+            val (appMinutes, siteMinutes) = usageToday(group)
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -72,19 +84,36 @@ fun GroupsScreen(
                 Column(Modifier.weight(1f)) {
                     Text(group.name.lowercase(), style = LauncherTheme.body)
                     Text(
-                        "${group.limitMinutes} min · ${group.packages.size} apps" +
+                        "${group.limitMinutes} min · ${count(group.packages.size, "app")} · " +
+                            count(group.sites.size, "site") +
                             if (!changeable) " · locked ${daysUntilChangeable(group)}d" else "",
                         style = LauncherTheme.caption,
                     )
+                    Text(
+                        "today ${appMinutes + siteMinutes} min · app $appMinutes · sites $siteMinutes",
+                        style = LauncherTheme.caption.copy(color = LauncherTheme.faint),
+                    )
                 }
-                Text(
-                    "delete",
-                    style = LauncherTheme.caption.copy(color = LauncherTheme.faint),
-                    modifier = Modifier
-                        .clickable { onDeleteGroup(group.name) }
-                        .padding(start = 12.dp, top = 4.dp),
-                )
+                RemoveLink("delete", locked = over) { onDeleteGroup(group.name) }
             }
+
+            group.sites.sorted().forEach { site ->
+                Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 2.dp, bottom = 2.dp)) {
+                    Text(
+                        site,
+                        style = LauncherTheme.body.copy(color = LauncherTheme.muted),
+                        modifier = Modifier.weight(1f),
+                    )
+                    RemoveLink("remove", locked = over) { onRemoveSite(group.name, site) }
+                }
+            }
+            Text(
+                "+ add site",
+                style = LauncherTheme.caption.copy(color = LauncherTheme.muted),
+                modifier = Modifier
+                    .clickable { addingSiteTo = group }
+                    .padding(start = 16.dp, top = 4.dp, bottom = 10.dp),
+            )
         }
 
         Spacer(Modifier.height(16.dp))
@@ -107,8 +136,19 @@ fun GroupsScreen(
             title = "group name",
             initial = "",
             digitsOnly = false,
-            onSave = { if (it.isNotBlank()) onAddGroup(it.trim()) },
+            onSave = { if (it.isNotBlank()) onAddGroup(it.trim()); true },
             onDismiss = { adding = false },
+        )
+    }
+
+    addingSiteTo?.let { group ->
+        GroupTextDialog(
+            title = "site for ${group.name.lowercase()} · a domain or a link",
+            initial = "",
+            digitsOnly = false,
+            onSave = { onAddSite(group.name, it) },
+            invalidMessage = "that isn't a site — try facebook.com",
+            onDismiss = { addingSiteTo = null },
         )
     }
 
@@ -117,21 +157,38 @@ fun GroupsScreen(
             title = "budget in minutes (max ${Prefs.MAX_LIMIT_MINUTES}) · changeable once a week",
             initial = group.limitMinutes.toString(),
             digitsOnly = true,
-            onSave = { it.toIntOrNull()?.let { m -> onSetLimit(group.name, m) } },
+            onSave = { it.toIntOrNull()?.let { m -> onSetLimit(group.name, m) }; true },
             onDismiss = { editingLimit = null },
         )
     }
 }
 
+private fun count(n: Int, noun: String) = if (n == 1) "1 $noun" else "$n ${noun}s"
+
+/** "delete" / "remove", or a faint "locked until tomorrow" while the group is over budget. */
+@Composable
+private fun RemoveLink(label: String, locked: Boolean, onClick: () -> Unit) {
+    Text(
+        if (locked) "locked until tomorrow" else label,
+        style = LauncherTheme.caption.copy(color = LauncherTheme.faint),
+        modifier = Modifier
+            .clickable(enabled = !locked, onClick = onClick)
+            .padding(start = 12.dp, top = 4.dp),
+    )
+}
+
+/** A one-field dialog; [onSave] returning false keeps it open showing [invalidMessage]. */
 @Composable
 private fun GroupTextDialog(
     title: String,
     initial: String,
     digitsOnly: Boolean,
-    onSave: (String) -> Unit,
+    onSave: (String) -> Boolean,
     onDismiss: () -> Unit,
+    invalidMessage: String? = null,
 ) {
     var value by remember { mutableStateOf(initial) }
+    var invalid by remember { mutableStateOf(false) }
     Dialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
@@ -144,17 +201,21 @@ private fun GroupTextDialog(
                 value = value,
                 onValueChange = {
                     value = if (digitsOnly) it.filter(Char::isDigit).take(3) else it
+                    invalid = false
                 },
                 singleLine = true,
                 textStyle = LauncherTheme.item,
                 cursorBrush = SolidColor(LauncherTheme.ink),
                 modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
             )
+            if (invalid && invalidMessage != null) {
+                Text(invalidMessage, style = LauncherTheme.caption.copy(color = LauncherTheme.faint))
+            }
             Text(
                 "save",
                 style = LauncherTheme.item,
                 modifier = Modifier
-                    .clickable { onSave(value); onDismiss() }
+                    .clickable { if (onSave(value)) onDismiss() else invalid = true }
                     .padding(vertical = 8.dp),
             )
         }

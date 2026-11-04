@@ -161,12 +161,18 @@ class Prefs(context: Context) {
      * out of every group if null. Returns false if it isn't a valid domain.
      */
     fun assignSiteToGroup(site: String, groupName: String?): Boolean {
-        val domain = SiteTracker.hostOf(site) ?: return false
+        val host = SiteTracker.hostOf(site) ?: return false
+        // "m.facebook.com" means the site, not just its mobile host.
+        val domain = host.removePrefix("m.").takeIf { '.' in it } ?: host
         groups = groups.map { g ->
             val without = g.sites - domain
             if (g.name == groupName) g.copy(sites = without + domain) else g.copy(sites = without)
         }
         return true
+    }
+
+    fun removeSite(groupName: String, domain: String) {
+        groups = groups.map { g -> if (g.name == groupName) g.copy(sites = g.sites - domain) else g }
     }
 
     fun canChangeGroupLimit(group: AppGroup): Boolean =

@@ -98,16 +98,28 @@ class MainActivity : ComponentActivity() {
             if (it.resultCode == RESULT_OK) SiteBlockVpnService.start(this)
         }
 
-    /** Starts the site-budget VPN, asking for Android's one-time VPN consent first if needed. */
-    private fun startSiteBlocking() {
+    /**
+     * Keeps the site-budget VPN in step with the groups: running while any
+     * group has a site, stopped once none do. Android's one-time VPN consent
+     * is only asked for when [askConsent] (the user just added a site);
+     * otherwise a missing consent waits for that moment.
+     */
+    private fun syncSiteVpn(askConsent: Boolean) {
+        if (prefs.groups.none { it.sites.isNotEmpty() }) {
+            if (SiteBlockVpnService.isRunning || prefs.siteVpnEnabled) SiteBlockVpnService.stop(this)
+            return
+        }
+        if (SiteBlockVpnService.isRunning) return
         val consent = VpnService.prepare(this)
-        if (consent == null) SiteBlockVpnService.start(this) else vpnConsent.launch(consent)
+        when {
+            consent == null -> SiteBlockVpnService.start(this)
+            askConsent -> vpnConsent.launch(consent)
+        }
     }
 
-    // TEMP (step 5): `am start ... --ez start_site_vpn true` until the sites screen has a toggle.
-    private fun handleDebugExtras(intent: Intent) {
-        if (intent.getBooleanExtra("start_site_vpn", false)) startSiteBlocking()
-    }
+    /** Sites and groups can't be removed while over budget — that would just undo the block. */
+    private fun isOverBudget(group: AppGroup): Boolean =
+        UsageStatsRepository.groupUsedMinutes(this, group) >= group.limitMinutes
 
     private val packageReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -119,7 +131,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         prefs = Prefs(this)
-        handleDebugExtras(intent)
 
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -311,11 +322,33 @@ class MainActivity : ComponentActivity() {
                         groups = groupsVersion.let { prefs.groups },
                         canChangeLimit = { prefs.canChangeGroupLimit(it) },
                         daysUntilChangeable = { prefs.daysUntilChangeable(it) },
+                        isOverBudget = ::isOverBudget,
+                        usageToday = {
+                            UsageStatsRepository.groupMinutesToday(this@MainActivity, it.packages) to
+                                UsageStatsRepository.groupSiteMinutes(this@MainActivity, it)
+                        },
                         onAddGroup = { prefs.addGroup(it); groupsVersion++ },
-                        onDeleteGroup = { prefs.deleteGroup(it); groupsVersion++ },
+                        onDeleteGroup = {
+                            prefs.deleteGroup(it)
+                            groupsVersion++
+                            syncSiteVpn(askConsent = false)
+                        },
                         onSetLimit = { name, minutes ->
                             prefs.setGroupLimit(name, minutes)
                             groupsVersion++
+                        },
+                        onAddSite = { name, site ->
+                            prefs.assignSiteToGroup(site, name).also { added ->
+                                if (added) {
+                                    groupsVersion++
+                                    syncSiteVpn(askConsent = true)
+                                }
+                            }
+                        },
+                        onRemoveSite = { name, domain ->
+                            prefs.removeSite(name, domain)
+                            groupsVersion++
+                            syncSiteVpn(askConsent = false)
                         },
                     )
 
@@ -419,6 +452,7 @@ class MainActivity : ComponentActivity() {
         )?.contains(packageName) == true
         exactAlarmsAllowed = DropScheduler.exactAlarmsAllowed(this)
         DropScheduler.scheduleNext(this)
+        syncSiteVpn(askConsent = false)
         screen = Screen.Home
         refreshDefaultStatus()
         registerReceiver(packageReceiver, IntentFilter().apply {
@@ -437,7 +471,6 @@ class MainActivity : ComponentActivity() {
     /** Pressing home while already in the launcher returns to the home screen. */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handleDebugExtras(intent)
         screen = Screen.Home
         optionsFor = null
     }

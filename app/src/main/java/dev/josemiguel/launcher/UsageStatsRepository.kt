@@ -69,10 +69,13 @@ object UsageStatsRepository {
     }
 
     /** A group's whole budget use today: its apps' foreground time plus its sites' on-screen time. */
-    fun groupUsedMinutes(context: Context, group: AppGroup): Long {
+    fun groupUsedMinutes(context: Context, group: AppGroup): Long =
+        groupMinutesToday(context, group.packages) + groupSiteMinutes(context, group)
+
+    /** On-screen minutes today across a group's sites (subdomains included). */
+    fun groupSiteMinutes(context: Context, group: AppGroup): Long {
         val prefs = Prefs(context)
-        val siteMs = group.sites.sumOf(prefs::siteTimeToday)
-        return groupMinutesToday(context, group.packages) + siteMs / 60_000
+        return group.sites.sumOf(prefs::siteTimeToday) / 60_000
     }
 
     /**
