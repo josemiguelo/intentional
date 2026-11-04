@@ -17,6 +17,11 @@ minutes.
   honest exit ramp — no walls, no "ignore" shame.
 - **The right metric** — the footer counts *intentional opens* and
   *paused-and-closed* moments for today. Never minutes.
+- **Group budgets across apps and websites** — a group (say "facebook") holds
+  apps *and* sites and shares one daily budget between them: the Facebook app's
+  time and facebook.com's time in the browser add up. Over budget, the app is
+  closed, the site bounces home, and a DNS-only VPN refuses the site's lookups
+  in every app and browser until tomorrow.
 
 Long-press any app (on home or in search) to add/remove it from home or mark
 it as considered.
@@ -38,9 +43,10 @@ post-reinstall checklist, and emergency escapes — is in
 [docs/SETUP.md](docs/SETUP.md).
 
 **Strict mode** is mandatory: the guard accessibility service blocks the system
-screens for switching the default launcher, disabling the guard, and (with
-uninstall protection on) uninstalling the app. There is no in-app off switch;
-the adb escapes in the setup guide are the last resort.
+screens for switching the default launcher, disabling the guard, (with
+uninstall protection on) uninstalling the app, and switching off site budgets
+(the VPN pages, Private DNS, a browser's own secure DNS). There is no in-app
+off switch; the adb escapes in the setup guide are the last resort.
 
 ## Design rationale
 

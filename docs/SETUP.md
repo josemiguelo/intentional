@@ -13,6 +13,7 @@ Component names used below:
 - guard service: `dev.josemiguel.launcher/dev.josemiguel.launcher.GuardService`
 - notification listener: `dev.josemiguel.launcher/dev.josemiguel.launcher.NotifListener`
 - device admin: `dev.josemiguel.launcher/.UninstallGuardAdmin`
+- site-budget VPN: `dev.josemiguel.launcher/.SiteBlockVpnService`
 
 ## What each feature needs
 
@@ -25,6 +26,8 @@ Component names used below:
 | Batched digest delivered at drop times | exact alarms + post-notifications |
 | Alarms & background services stay reliable | battery-optimization exemption |
 | Uninstall protection (optional) | device admin (granted in-app, no adb) |
+| Website time in group budgets (measuring + bouncing off over-budget sites) | the guard service + usage access |
+| Over-budget sites blocked in every app and browser | VPN consent + Private DNS on **Automatic** or off (+ always-on VPN) |
 
 Minimum Android version: 10 (API 29).
 
@@ -107,6 +110,45 @@ Entirely in-app, no adb: Settings (long-press the clock) → strict mode →
 **"uninstall protection · off"** → activate the device admin. Once on, it's
 locked; removing it needs the adb escape below.
 
+## 9. Site budgets (only if a group has websites)
+
+Groups can hold websites next to apps (settings → groups & time limits →
+**+ add site**). Their time is measured by the guard from Brave/Chrome's
+address bar; once a group is over budget, the guard bounces off its sites and a
+local VPN refuses their DNS lookups, so they don't load in any app or browser
+for the rest of the day.
+
+The VPN only carries DNS: it routes nothing but its own resolver address
+(`10.111.0.53`), relays allowed lookups to the current network's DNS server,
+and never sees any other traffic.
+
+1. **Private DNS → Automatic** (or off). A Private DNS *hostname* sends lookups
+   around the VPN. Settings → Connections → More connection settings → Private
+   DNS, or adb: `adb shell settings put global private_dns_mode opportunistic`
+2. **VPN consent** — adding the first site asks once ("Intentional wants to set
+   up a VPN connection"). adb alternative: `adb shell appops set
+   dev.josemiguel.launcher ACTIVATE_VPN allow`. From then on the VPN starts by
+   itself whenever the home screen comes up and a group has sites, and stops
+   once none do.
+3. **Always-on VPN** — Settings → Connections → More connection settings → VPN
+   → ⚙ next to Intentional → **Always-on VPN** on. Android then restarts the VPN
+   after a crash or reboot and won't let another VPN app replace it. Do this
+   *before* the guard is on: strict mode blocks the VPN pages afterwards.
+
+**Leave "Block connections without VPN" off.** It only lets traffic through
+the VPN, and this one carries DNS alone — with it on, the phone has no
+internet at all.
+
+Strict mode additionally blocks, for site budgets: the VPN list, Intentional's
+VPN page (always-on, delete profile), the VPN disconnect dialogs, the Private
+DNS page, and Brave/Chrome's own **Use secure DNS** page (a custom provider
+there would resolve around the VPN). A site's removal, or its group's deletion,
+is locked while the group is over budget.
+
+Known gaps: names resolved before a block stay cached for their TTL (usually a
+few minutes); open connections survive until they close; browsers inside Secure
+Folder and browsers doing their own encrypted DNS (e.g. Firefox) aren't covered.
+
 ## After every reinstall
 
 `adb install -r` keeps app data but **resets these**, so redo them:
@@ -125,6 +167,8 @@ locked; removing it needs the adb escape below.
    ```
 
 The default-launcher role and notification access usually survive `install -r`.
+So do the VPN consent and always-on setting: the reinstall stops the VPN, and
+it comes back on the next press of Home.
 
 ## Emergency escapes (adb)
 
@@ -137,7 +181,17 @@ adb shell settings put secure enabled_accessibility_services ""
 
 # remove uninstall protection so the app can be uninstalled
 adb shell dpm remove-active-admin dev.josemiguel.launcher/.UninstallGuardAdmin
+
+# stop the site-budget VPN (e.g. lookups failing): withdraw its VPN permission,
+# then stop the app so neither the app nor always-on can bring it back
+adb shell appops set dev.josemiguel.launcher ACTIVATE_VPN ignore
+adb shell am force-stop dev.josemiguel.launcher
+# ...and to undo it later
+adb shell appops set dev.josemiguel.launcher ACTIVATE_VPN allow
 ```
+
+Stopping the app also unbinds the guard; rebind it as in "After every
+reinstall".
 
 ## Non-Samsung phones
 
