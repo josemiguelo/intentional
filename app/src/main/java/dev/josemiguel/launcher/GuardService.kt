@@ -1,8 +1,11 @@
 package dev.josemiguel.launcher
 
 import android.accessibilityservice.AccessibilityService
+import android.content.BroadcastReceiver
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.media.session.MediaController
@@ -23,7 +26,7 @@ import dev.josemiguel.launcher.guard.GuardPolicy
 import dev.josemiguel.launcher.guard.ScreenInfo
 
 /**
- * The launcher's watchdog. It does two jobs, both triggered by foreground-app
+ * The launcher's watchdog. It does three jobs, all triggered by foreground-app
  * changes:
  *
  * 1. Strict mode (always on): landing on the screen that switches the default
@@ -37,6 +40,9 @@ import dev.josemiguel.launcher.guard.ScreenInfo
  *    This is what makes the per-app hour cap a real constraint rather than a
  *    launch-time suggestion — notifications, recents, and links can't get around
  *    it. Requires usage access; without it, limits silently don't enforce.
+ *
+ * 3. Website time: the browser's address bar feeds [SiteTracker], which counts
+ *    on-screen time per site toward group budgets.
  *
  * Hard-won platform notes (Samsung, Android 13+):
  * - Sideloaded apps need the ACCESS_RESTRICTED_SETTINGS appop allowed or the
@@ -63,6 +69,14 @@ class GuardService : AccessibilityService() {
 
     /** The overlay hiding a blocked screen while HOME animates, or null. */
     private var shield: View? = null
+
+    private val siteTracker by lazy { SiteTracker(this, handler) }
+    private var lastSiteRead = 0L
+
+    /** Screen off ends any website time, whatever the browser does. */
+    private val screenOff = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) = siteTracker.stop()
+    }
 
     /** Sessions we've attached a re-stop callback to, so play attempts bounce back. */
     private val watchedSessions = mutableSetOf<MediaSession.Token>()
@@ -95,6 +109,7 @@ class GuardService : AccessibilityService() {
         super.onServiceConnected()
         Log.i(TAG, "connected, policy=${policy.javaClass.simpleName}")
         registerMediaSessionListener()
+        registerReceiver(screenOff, IntentFilter(Intent.ACTION_SCREEN_OFF))
     }
 
     /**
@@ -122,8 +137,28 @@ class GuardService : AccessibilityService() {
         }
     }
 
+    /**
+     * Feeds [siteTracker]. Browser events fire many times a second, so the
+     * address bar is read at most once per [SITE_READ_MS]. Another app's window
+     * stops the clock only if it actually took over the active window — the
+     * keyboard or a status-bar pull-down leave the browser active.
+     */
+    private fun trackSite(event: AccessibilityEvent) {
+        val pkg = event.packageName?.toString() ?: return
+        if (pkg in SiteTracker.BROWSERS) {
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastSiteRead < SITE_READ_MS) return
+            lastSiteRead = now
+            val root = rootInActiveWindow ?: return
+            if (root.packageName?.toString() in SiteTracker.BROWSERS) siteTracker.onBrowserWindow(root)
+        } else if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            if (rootInActiveWindow?.packageName?.toString() !in SiteTracker.BROWSERS) siteTracker.stop()
+        }
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         val type = event.eventType
+        trackSite(event)
         // PiP entering/leaving fires TYPE_WINDOWS_CHANGED, not a state change.
         if (type == AccessibilityEvent.TYPE_WINDOWS_CHANGED ||
             type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
@@ -311,6 +346,8 @@ class GuardService : AccessibilityService() {
         handler.removeCallbacks(limitPoll)
         handler.removeCallbacks(hideShield)
         hideShield.run()
+        siteTracker.stop()
+        unregisterReceiver(screenOff)
         sessionsListener?.let {
             getSystemService(MediaSessionManager::class.java)
                 ?.removeOnActiveSessionsChangedListener(it)
@@ -325,5 +362,6 @@ class GuardService : AccessibilityService() {
         const val PIP_CHECK_THROTTLE_MS = 800L
         const val MEDIA_SETTLE_MS = 700L
         const val SHIELD_MS = 1_200L
+        const val SITE_READ_MS = 1_000L
     }
 }

@@ -177,6 +177,24 @@ class Prefs(context: Context) {
         sp.edit().putInt(key, sp.getInt(key, 0) + 1).apply()
     }
 
+    /** Adds [ms] of on-screen time to [host] for today; returns today's total. */
+    fun addSiteTime(host: String, ms: Long): Long {
+        val key = "site-${todaySuffix()}-$host"
+        val total = sp.getLong(key, 0L) + ms
+        sp.edit().putLong(key, total).apply()
+        return total
+    }
+
+    /** Today's on-screen time for [domain] and its subdomains, in ms. */
+    fun siteTimeToday(domain: String): Long {
+        val prefix = "site-${todaySuffix()}-"
+        return sp.all.entries.sumOf { (key, value) ->
+            val host = key.removePrefix(prefix)
+            val matches = key.startsWith(prefix) && (host == domain || host.endsWith(".$domain"))
+            if (matches) value as Long else 0L
+        }
+    }
+
     /** (intentional opens, paused-and-closed) for today. */
     fun countsToday(): Pair<Int, Int> =
         sp.getInt("intentional-${todaySuffix()}", 0) to sp.getInt("paused-${todaySuffix()}", 0)
