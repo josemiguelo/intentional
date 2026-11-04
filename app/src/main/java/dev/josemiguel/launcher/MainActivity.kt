@@ -7,10 +7,13 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.Manifest
 import android.content.pm.PackageManager
+import android.database.ContentObserver
 import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -462,10 +465,12 @@ class MainActivity : ComponentActivity() {
         usageAccessGranted = UsageStatsRepository.hasPermission(this)
         uninstallProtected = getSystemService(android.app.admin.DevicePolicyManager::class.java)
             .isAdminActive(adminComponent)
-        guardEnabled = Settings.Secure.getString(
-            contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-        )?.contains(packageName) == true
+        readGuardEnabled()
+        contentResolver.registerContentObserver(
+            Settings.Secure.getUriFor(Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES),
+            false,
+            guardObserver,
+        )
         exactAlarmsAllowed = DropScheduler.exactAlarmsAllowed(this)
         DropScheduler.scheduleNext(this)
         syncSiteVpn(askConsent = false)
@@ -482,6 +487,23 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         unregisterReceiver(packageReceiver)
+        contentResolver.unregisterContentObserver(guardObserver)
+    }
+
+    private fun readGuardEnabled() {
+        guardEnabled = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+        )?.contains(packageName) == true
+    }
+
+    /**
+     * Keeps the guard's status live while the launcher is in front: read only
+     * on start, it went stale when the service was toggled meanwhile (e.g. the
+     * off/on rebind after a reinstall), showing "enable" for a running guard.
+     */
+    private val guardObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) = readGuardEnabled()
     }
 
     /** Pressing home while already in the launcher returns to the home screen. */
