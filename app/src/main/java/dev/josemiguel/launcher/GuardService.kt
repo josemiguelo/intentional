@@ -3,14 +3,19 @@ package dev.josemiguel.launcher
 import android.accessibilityservice.AccessibilityService
 import android.content.ComponentName
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.PixelFormat
 import android.media.session.MediaController
 import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import android.view.View
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.Toast
 import dev.josemiguel.launcher.guard.GuardBypass
@@ -55,6 +60,9 @@ class GuardService : AccessibilityService() {
     private var launchableRefreshedAt = 0L
 
     private var lastPipCheck = 0L
+
+    /** The overlay hiding a blocked screen while HOME animates, or null. */
+    private var shield: View? = null
 
     /** Sessions we've attached a re-stop callback to, so play attempts bounce back. */
     private val watchedSessions = mutableSetOf<MediaSession.Token>()
@@ -151,8 +159,57 @@ class GuardService : AccessibilityService() {
 
         if (blocked) {
             Log.i(TAG, "blocked: ${screen.className}")
+            showShield()
+            // BACK closes the screen itself (HOME alone leaves it in Recents to
+            // be reopened); HOME then lands on the launcher.
+            performGlobalAction(GLOBAL_ACTION_BACK)
             performGlobalAction(GLOBAL_ACTION_HOME)
         }
+    }
+
+    /**
+     * Covers the screen with an opaque, touch-swallowing overlay the instant a
+     * blocked screen is detected. The HOME transition takes ~800ms on One UI,
+     * and the blocked screen stays tappable throughout it without this — enough
+     * to hit "Deactivate" on the device-admin dialog. Removed on a timer so it
+     * can never strand the phone behind it.
+     */
+    private fun showShield() {
+        handler.removeCallbacks(hideShield)
+        if (shield == null) {
+            val view = View(this).apply {
+                setBackgroundColor(Color.BLACK)
+                setOnTouchListener { _, _ -> true }
+            }
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.OPAQUE,
+            ).apply {
+                // Without these the overlay stops below the status bar / camera
+                // cutout, leaving a strip where the HOME animation shows through.
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) setFitInsetsTypes(0)
+            }
+            try {
+                getSystemService(WindowManager::class.java).addView(view, params)
+                shield = view
+            } catch (e: Exception) {
+                Log.w(TAG, "shield failed", e)
+                return
+            }
+        }
+        handler.postDelayed(hideShield, SHIELD_MS)
+    }
+
+    private val hideShield = Runnable {
+        shield?.let { getSystemService(WindowManager::class.java).removeView(it) }
+        shield = null
     }
 
     /** (Re)arms or stops the time-limit poll for the newly-foreground app. */
@@ -252,6 +309,8 @@ class GuardService : AccessibilityService() {
 
     override fun onUnbind(intent: Intent?): Boolean {
         handler.removeCallbacks(limitPoll)
+        handler.removeCallbacks(hideShield)
+        hideShield.run()
         sessionsListener?.let {
             getSystemService(MediaSessionManager::class.java)
                 ?.removeOnActiveSessionsChangedListener(it)
@@ -265,5 +324,6 @@ class GuardService : AccessibilityService() {
         const val LAUNCHABLE_TTL_MS = 300_000L
         const val PIP_CHECK_THROTTLE_MS = 800L
         const val MEDIA_SETTLE_MS = 700L
+        const val SHIELD_MS = 1_200L
     }
 }

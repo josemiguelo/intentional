@@ -20,8 +20,12 @@ object DefaultGuardPolicy : GuardPolicy {
         screen.className.contains("Accessibility", ignoreCase = true) &&
             screen.text.contains("intentional")
 
+    // The activity's own state event can lag its dialog by ~500ms (One UI), and
+    // the dialog's event arrives as a generic AlertDialog — so the title text is
+    // what catches it the moment it shows.
     override fun isDeviceAdminScreen(screen: ScreenInfo): Boolean =
-        screen.className.contains("DeviceAdmin", ignoreCase = true)
+        screen.className.contains("DeviceAdmin", ignoreCase = true) ||
+            screen.text.contains("device admin app")
 
     override fun isPrivateDnsScreen(screen: ScreenInfo): Boolean =
         screen.text.contains("private dns")
