@@ -88,6 +88,9 @@ class GuardService : AccessibilityService() {
         override fun onReceive(context: Context, intent: Intent) = siteTracker.stop()
     }
 
+    // Unbinding can come before onServiceConnected (a quick off/on toggle).
+    private var screenOffRegistered = false
+
     /** Sessions we've attached a re-stop callback to, so play attempts bounce back. */
     private val watchedSessions = mutableSetOf<MediaSession.Token>()
 
@@ -121,6 +124,7 @@ class GuardService : AccessibilityService() {
         Log.i(TAG, "connected, policy=${policy.javaClass.simpleName}")
         registerMediaSessionListener()
         registerReceiver(screenOff, IntentFilter(Intent.ACTION_SCREEN_OFF))
+        screenOffRegistered = true
     }
 
     /**
@@ -386,7 +390,8 @@ class GuardService : AccessibilityService() {
         handler.removeCallbacks(hideShield)
         hideShield.run()
         siteTracker.stop()
-        unregisterReceiver(screenOff)
+        if (screenOffRegistered) unregisterReceiver(screenOff)
+        screenOffRegistered = false
         sessionsListener?.let {
             getSystemService(MediaSessionManager::class.java)
                 ?.removeOnActiveSessionsChangedListener(it)
