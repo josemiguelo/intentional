@@ -20,6 +20,7 @@ import android.util.Log
 import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
 import dev.josemiguel.launcher.guard.GuardBypass
 import dev.josemiguel.launcher.guard.GuardPolicy
@@ -31,7 +32,8 @@ import dev.josemiguel.launcher.guard.ScreenInfo
  *
  * 1. Strict mode (always on): landing on the screen that switches the default
  *    launcher — or the accessibility / device-admin page that could disable
- *    this service or uninstall the app — bounces back home. Which screen counts
+ *    this service or uninstall the app, or the VPN / Private DNS / browser
+ *    secure-DNS settings that could switch off site budgets — bounces back home. Which screen counts
  *    as "the launcher switcher" is decided per-OEM by [GuardPolicy]; everything
  *    else in Settings (the general "Default apps" list included) stays reachable.
  *
@@ -166,6 +168,7 @@ class GuardService : AccessibilityService() {
             lastSiteRead = now
             val root = rootInActiveWindow ?: return
             if (root.packageName?.toString() in SiteTracker.BROWSERS) {
+                if (Prefs(this).strictMode && isBrowserSecureDnsPage(root)) return block("browser secure DNS")
                 siteTracker.onBrowserWindow(root)
                 enforceSiteBudget()
             }
@@ -215,7 +218,8 @@ class GuardService : AccessibilityService() {
 
         // Strict-mode blocking is scoped to system settings screens.
         val watched = pkg.contains("settings", ignoreCase = true) ||
-            pkg.contains("permissioncontroller", ignoreCase = true)
+            pkg.contains("permissioncontroller", ignoreCase = true) ||
+            pkg == "com.android.vpndialogs"
         if (!watched) return
         if (!Prefs(this).strictMode) return
 
@@ -233,16 +237,31 @@ class GuardService : AccessibilityService() {
         val blocked = policy.isHomePicker(screen) ||
             policy.isOwnAccessibilityScreen(screen) ||
             isAdminScreen ||
-            policy.isPrivateDnsScreen(screen)
+            policy.isPrivateDnsScreen(screen) ||
+            policy.isVpnControlScreen(screen)
 
-        if (blocked) {
-            Log.i(TAG, "blocked: ${screen.className}")
-            showShield()
-            // BACK closes the screen itself (HOME alone leaves it in Recents to
-            // be reopened); HOME then lands on the launcher.
-            performGlobalAction(GLOBAL_ACTION_BACK)
-            performGlobalAction(GLOBAL_ACTION_HOME)
-        }
+        if (blocked) block(screen.className)
+    }
+
+    private fun block(what: String) {
+        Log.i(TAG, "blocked: $what")
+        showShield()
+        // BACK closes the screen itself (HOME alone leaves it in Recents to
+        // be reopened); HOME then lands on the launcher.
+        performGlobalAction(GLOBAL_ACTION_BACK)
+        performGlobalAction(GLOBAL_ACTION_HOME)
+    }
+
+    /**
+     * A browser's own secure-DNS setting, whose custom provider would resolve
+     * around the site VPN. Browser settings are fragments that fire no window
+     * change, so this reads the content: only checked when the window has no
+     * address bar (a settings page, not a website).
+     */
+    private fun isBrowserSecureDnsPage(root: AccessibilityNodeInfo): Boolean {
+        val pkg = root.packageName?.toString() ?: return false
+        if (root.findAccessibilityNodeInfosByViewId("$pkg:id/url_bar").isNotEmpty()) return false
+        return root.findAccessibilityNodeInfosByText("Choose another provider").isNotEmpty()
     }
 
     /**

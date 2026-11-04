@@ -5,9 +5,11 @@ package dev.josemiguel.launcher.guard
  *
  * Reuses [DefaultGuardPolicy] by delegation and overrides only what differs on
  * this phone: the home picker. The device-admin add (SecDeviceAdminAdd), the
- * accessibility page, and the Private DNS chooser (a generic AlertDialog) all
- * match the default detection here, so they're inherited — override them if a
- * future One UI build changes them.
+ * accessibility page, the Private DNS chooser (a generic AlertDialog) and the
+ * VPN screens (VpnSettingsActivity, SubSettings titled "Intentional", the
+ * "disconnected from this VPN" AlertDialog) all match the default detection
+ * here, so they're inherited — override them if a future One UI build changes
+ * them.
  */
 object OneUiGuardPolicy : GuardPolicy by DefaultGuardPolicy {
 

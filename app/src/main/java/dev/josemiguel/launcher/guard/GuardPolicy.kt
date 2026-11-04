@@ -32,6 +32,13 @@ interface GuardPolicy {
     /** The Private DNS chooser (which could change/disable DNS-based filtering). */
     fun isPrivateDnsScreen(screen: ScreenInfo): Boolean
 
+    /**
+     * The VPN list, this app's VPN page (always-on, delete profile) or a
+     * disconnect dialog — anything that could stop the site-budget VPN.
+     * Android's VPN consent dialog must not match: adding a site needs it.
+     */
+    fun isVpnControlScreen(screen: ScreenInfo): Boolean
+
     companion object {
         fun forDevice(): GuardPolicy =
             if (Build.MANUFACTURER.equals("samsung", ignoreCase = true)) OneUiGuardPolicy

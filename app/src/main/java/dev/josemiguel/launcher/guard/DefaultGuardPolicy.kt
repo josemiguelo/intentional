@@ -29,4 +29,14 @@ object DefaultGuardPolicy : GuardPolicy {
 
     override fun isPrivateDnsScreen(screen: ScreenInfo): Boolean =
         screen.text.contains("private dns")
+
+    // The per-VPN page is a generic SubSettings titled with the app's label;
+    // the disconnect dialogs are Settings' AlertDialog and vpndialogs'
+    // ManageDialog (its ConfirmDialog is the consent, left alone).
+    override fun isVpnControlScreen(screen: ScreenInfo): Boolean =
+        screen.className.contains("VpnSettings", ignoreCase = true) ||
+            (screen.className.endsWith("SubSettings") && screen.text.trim() == "intentional") ||
+            screen.text.contains("disconnected from this vpn") ||
+            (screen.packageName == "com.android.vpndialogs" &&
+                screen.className.contains("ManageDialog"))
 }
