@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -92,6 +93,22 @@ class MainActivity : ComponentActivity() {
             refreshDefaultStatus()
         }
 
+    private val vpnConsent =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            if (it.resultCode == RESULT_OK) SiteBlockVpnService.start(this)
+        }
+
+    /** Starts the site-budget VPN, asking for Android's one-time VPN consent first if needed. */
+    private fun startSiteBlocking() {
+        val consent = VpnService.prepare(this)
+        if (consent == null) SiteBlockVpnService.start(this) else vpnConsent.launch(consent)
+    }
+
+    // TEMP (step 5): `am start ... --ez start_site_vpn true` until the sites screen has a toggle.
+    private fun handleDebugExtras(intent: Intent) {
+        if (intent.getBooleanExtra("start_site_vpn", false)) startSiteBlocking()
+    }
+
     private val packageReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             apps = AppRepository.loadApps(this@MainActivity)
@@ -102,6 +119,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         prefs = Prefs(this)
+        handleDebugExtras(intent)
 
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -419,6 +437,7 @@ class MainActivity : ComponentActivity() {
     /** Pressing home while already in the launcher returns to the home screen. */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        handleDebugExtras(intent)
         screen = Screen.Home
         optionsFor = null
     }

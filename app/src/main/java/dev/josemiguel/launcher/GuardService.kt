@@ -96,6 +96,7 @@ class GuardService : AccessibilityService() {
             val pkg = monitoredPackage ?: return
             if (isOverLimit(pkg)) {
                 Log.i(TAG, "limit reached: $pkg")
+                SiteBlockVpnService.refreshSoon()
                 Toast.makeText(
                     this@GuardService,
                     "daily limit reached — come back tomorrow",
@@ -187,6 +188,7 @@ class GuardService : AccessibilityService() {
         Log.i(TAG, "site budget used: $host")
         Toast.makeText(this, "$host · ${group.name.lowercase()} budget used today", Toast.LENGTH_SHORT).show()
         siteTracker.stop()
+        SiteBlockVpnService.refreshSoon()
         // Reopening the browser on the same tab must re-check at once.
         siteChecked = null
         showShield()

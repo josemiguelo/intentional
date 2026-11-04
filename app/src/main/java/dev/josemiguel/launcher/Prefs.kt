@@ -67,6 +67,11 @@ class Prefs(context: Context) {
      */
     val strictMode: Boolean get() = true
 
+    /** Whether the site-budget VPN should be running; restored on boot. */
+    var siteVpnEnabled: Boolean
+        get() = sp.getBoolean("site_vpn", false)
+        set(value) = sp.edit().putBoolean("site_vpn", value).apply()
+
     var windDownEnabled: Boolean
         get() = sp.getBoolean("winddown_enabled", true)
         set(value) = sp.edit().putBoolean("winddown_enabled", value).apply()
