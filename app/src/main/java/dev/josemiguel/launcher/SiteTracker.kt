@@ -18,15 +18,22 @@ import android.view.accessibility.AccessibilityNodeInfo
  * vanishes from the tree while the toolbar is scrolled away, so a missing bar
  * keeps the last host rather than stopping the clock.
  */
-class SiteTracker(private val context: Context, private val handler: Handler) {
+class SiteTracker(
+    private val context: Context,
+    private val handler: Handler,
+    /** Runs after each periodic save, so budgets are re-checked even when the page sits idle. */
+    private val onTick: () -> Unit,
+) {
 
     /** The host time is currently accruing to, or null when not counting. */
-    private var current: String? = null
+    var current: String? = null
+        private set
     private var since = 0L
 
     private val flushTick = object : Runnable {
         override fun run() {
             credit()
+            onTick()
             if (current != null) handler.postDelayed(this, FLUSH_MS)
         }
     }

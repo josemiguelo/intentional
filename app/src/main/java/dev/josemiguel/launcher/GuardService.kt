@@ -42,7 +42,8 @@ import dev.josemiguel.launcher.guard.ScreenInfo
  *    it. Requires usage access; without it, limits silently don't enforce.
  *
  * 3. Website time: the browser's address bar feeds [SiteTracker], which counts
- *    on-screen time per site toward group budgets.
+ *    on-screen time per site toward group budgets; a site whose group is over
+ *    budget bounces home like an over-limit app.
  *
  * Hard-won platform notes (Samsung, Android 13+):
  * - Sideloaded apps need the ACCESS_RESTRICTED_SETTINGS appop allowed or the
@@ -70,8 +71,17 @@ class GuardService : AccessibilityService() {
     /** The overlay hiding a blocked screen while HOME animates, or null. */
     private var shield: View? = null
 
-    private val siteTracker by lazy { SiteTracker(this, handler) }
+    private val siteTracker by lazy {
+        SiteTracker(this, handler) {
+            siteChecked = null
+            enforceSiteBudget()
+        }
+    }
     private var lastSiteRead = 0L
+
+    /** The site last checked against its group budget, and when, so a long visit re-checks every [POLL_MS]. */
+    private var siteChecked: String? = null
+    private var siteCheckedAt = 0L
 
     /** Screen off ends any website time, whatever the browser does. */
     private val screenOff = object : BroadcastReceiver() {
@@ -150,10 +160,37 @@ class GuardService : AccessibilityService() {
             if (now - lastSiteRead < SITE_READ_MS) return
             lastSiteRead = now
             val root = rootInActiveWindow ?: return
-            if (root.packageName?.toString() in SiteTracker.BROWSERS) siteTracker.onBrowserWindow(root)
+            if (root.packageName?.toString() in SiteTracker.BROWSERS) {
+                siteTracker.onBrowserWindow(root)
+                enforceSiteBudget()
+            }
         } else if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             if (rootInActiveWindow?.packageName?.toString() !in SiteTracker.BROWSERS) siteTracker.stop()
         }
+    }
+
+    /**
+     * Bounces home off a site whose group is over budget. Checked when the site
+     * changes, every [POLL_MS] while the page fires events, and on each
+     * SiteTracker save (an idle page fires none) — the budget query reads the
+     * day's usage events, too costly for every address-bar read.
+     */
+    private fun enforceSiteBudget() {
+        val host = siteTracker.current ?: return
+        val now = SystemClock.elapsedRealtime()
+        if (host == siteChecked && now - siteCheckedAt < POLL_MS) return
+        siteChecked = host
+        siteCheckedAt = now
+
+        val group = Prefs(this).groupOfSite(host) ?: return
+        if (UsageStatsRepository.groupUsedMinutes(this, group) < group.limitMinutes) return
+        Log.i(TAG, "site budget used: $host")
+        Toast.makeText(this, "$host · ${group.name.lowercase()} budget used today", Toast.LENGTH_SHORT).show()
+        siteTracker.stop()
+        // Reopening the browser on the same tab must re-check at once.
+        siteChecked = null
+        showShield()
+        performGlobalAction(GLOBAL_ACTION_HOME)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
