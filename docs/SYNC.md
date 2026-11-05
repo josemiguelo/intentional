@@ -22,8 +22,9 @@ while the screen is on):
   key only the devices have; Firebase stores blobs. Only time that counts
   toward a group leaves a device. Group ids are a keyed hash of the name.
 - **No conflicts.** Each device writes only its own usage; a group's use is
-  the sum. Groups: a local edit goes up, a newer edit elsewhere comes down;
-  a device's first sync takes the groups already there.
+  the sum. Groups: a device's first sync merges its groups with the synced
+  ones (same name: apps and sites joined; each device knows its own apps),
+  after that a local edit goes up and a newer edit elsewhere comes down.
 - **The weekly lock is the server's.** `firebase/database.rules.json` lets
   only the account in, and refuses a limit change within 7 days of the last
   (stamped with the server's clock). A limit set before sync carries over

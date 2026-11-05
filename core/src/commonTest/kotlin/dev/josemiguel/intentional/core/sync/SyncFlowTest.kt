@@ -124,6 +124,27 @@ class SyncFlowTest {
     }
 
     @Test
+    fun aFirstSyncMergesSoNoDeviceLosesItsApps() = runTest {
+        // The desktop got there first, with its own apps and no Android packages...
+        val desktop = device("desktop")
+        val desktopGroups = listOf(youtube.copy(packages = setOf("hypr:freetube")), AppGroup("reddit", emptySet(), 30, 0L, setOf("reddit.com")))
+        desktop.reconcileGroups(desktopGroups, synced = null, server.now)
+
+        // ...the phone's first sync keeps its packages and adds its own group.
+        val phoneGroups = listOf(youtube, AppGroup("x", setOf("com.twitter.android"), 30, 0L, setOf("x.com")))
+        val first = device("phone").reconcileGroups(phoneGroups, synced = null, server.now)
+        assertEquals(GroupsChange.PUSHED, first.change)
+        assertEquals(setOf("hypr:freetube", "com.google.android.youtube"), first.groups.single { it.name == "youtube" }.packages)
+        assertEquals(listOf("youtube", "reddit", "x"), first.groups.map { it.name })
+
+        // The desktop takes the merge on its next cycle.
+        server.now += 1_000
+        val back = desktop.reconcileGroups(desktopGroups, SyncedGroups(desktopGroups, 0L), server.now)
+        assertEquals(GroupsChange.ADOPTED, back.change)
+        assertEquals(first.groups, back.groups)
+    }
+
+    @Test
     fun limitsCarryOverOnceThenChangeOnlyWeekly() = runTest {
         val phone = device("phone")
 

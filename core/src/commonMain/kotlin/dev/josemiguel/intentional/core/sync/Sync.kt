@@ -92,16 +92,24 @@ class Sync(private val config: SyncConfig, http: HttpClient = defaultHttpClient(
 
     /**
      * This device's groups against the synced ones. [synced] is what this
-     * device last agreed with the server (null before its first sync). The
-     * first sync takes the server's groups if it has any (another device got
-     * there first); after that a local edit (local differs from [synced])
-     * goes up, and a newer edit from elsewhere comes down. The caller stores
+     * device last agreed with the server (null before its first sync). A
+     * first sync merges ([mergeGroups]: each device knows its own apps, so
+     * neither side's may be lost) and pushes the merge if it adds anything;
+     * after that a local edit (local differs from [synced]) goes up, and a
+     * newer edit from elsewhere comes down. The caller stores
      * [GroupsOutcome.groups] and [GroupsOutcome.synced].
      */
     suspend fun reconcileGroups(local: List<AppGroup>, synced: SyncedGroups?, nowMs: Long): GroupsOutcome {
         val remote = groups(nowMs)
         return when {
-            synced == null && remote != null -> GroupsOutcome(remote.groups, remote, GroupsChange.ADOPTED)
+            synced == null && remote != null -> {
+                val merged = mergeGroups(remote.groups, local)
+                if (merged == remote.groups) GroupsOutcome(merged, remote, GroupsChange.ADOPTED)
+                else {
+                    putGroups(merged, nowMs, nowMs)
+                    GroupsOutcome(merged, SyncedGroups(merged, nowMs), GroupsChange.PUSHED)
+                }
+            }
             synced == null || local != synced.groups -> {
                 putGroups(local, nowMs, nowMs)
                 GroupsOutcome(local, SyncedGroups(local, nowMs), GroupsChange.PUSHED)
@@ -138,6 +146,20 @@ class Sync(private val config: SyncConfig, http: HttpClient = defaultHttpClient(
 }
 
 enum class GroupsChange { NONE, PUSHED, ADOPTED }
+
+/**
+ * Two devices' groups, joined the first time one meets the other: a group
+ * either has keeps its apps and sites from both (the [base] side's limit
+ * and order first), and a group only one has is kept.
+ */
+fun mergeGroups(base: List<AppGroup>, other: List<AppGroup>): List<AppGroup> {
+    val byName = other.associateBy { it.name }
+    val merged = base.map { g ->
+        val o = byName[g.name] ?: return@map g
+        g.copy(packages = g.packages + o.packages, sites = g.sites + o.sites)
+    }
+    return merged + other.filter { o -> base.none { it.name == o.name } }
+}
 
 data class GroupsOutcome(val groups: List<AppGroup>, val synced: SyncedGroups, val change: GroupsChange)
 
