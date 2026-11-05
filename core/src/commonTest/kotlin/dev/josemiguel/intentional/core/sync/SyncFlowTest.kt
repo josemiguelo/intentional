@@ -41,8 +41,14 @@ private class FakeFirebase(var now: Long = 1_000_000_000_000L) {
             json("""{"user_id":"u1","id_token":"t2","refresh_token":"r2","expires_in":"3600"}""")
         else -> {
             val path = req.url.encodedPath.removePrefix("/users/u1/").removeSuffix(".json")
-            if (req.method == HttpMethod.Get) json(read(path)?.toString() ?: "null")
-            else {
+            if (req.method == HttpMethod.Get) {
+                val found = read(path)
+                val shallow = req.url.parameters["shallow"] == "true" && found is JsonObject
+                json((if (shallow) JsonObject((found as JsonObject).mapValues { JsonPrimitive(true) }) else found)?.toString() ?: "null")
+            } else if ((req.body as TextContent).text == "null") {
+                tree.remove(path)
+                json("null")
+            } else {
                 val value = resolve(Json.parseToJsonElement((req.body as TextContent).text))
                 val old = if (path.startsWith("limits/")) tree[path]?.jsonObject else null
                 if (old != null && now - old["changedAt"]!!.jsonPrimitive.long < WEEK) {
@@ -55,10 +61,11 @@ private class FakeFirebase(var now: Long = 1_000_000_000_000L) {
         }
     }
 
-    /** A written path, or the children written one level below it. */
+    /** A written path, or everything written below it, nested. */
     private fun read(path: String): JsonElement? = tree[path] ?: tree
         .filterKeys { it.startsWith("$path/") }
-        .mapKeys { it.key.removePrefix("$path/") }
+        .keys.map { it.removePrefix("$path/").substringBefore('/') }.toSet()
+        .associateWith { read("$path/$it")!! }
         .takeIf { it.isNotEmpty() }
         ?.let(::JsonObject)
 
@@ -177,6 +184,23 @@ class SyncFlowTest {
         assertEquals(phone, desktop.settings)
         // A fresh TV with defaults of its own takes the synced ones too (first sync: the server's win).
         assertEquals(phone, device("tv").reconcileSettings(Settings(), null, server.now)!!.settings)
+    }
+
+    @Test
+    fun oldUsageIsPrunedForEveryDevice() = runTest {
+        val phone = device("phone")
+        listOf("2026-09-01", "2026-10-06", "2026-10-07", "2026-11-05").forEach { day ->
+            phone.exchangeUsage(day, DayUsage(sites = mapOf("x.com" to 1L)), server.now)
+            device("tv").exchangeUsage(day, DayUsage(sites = mapOf("x.com" to 2L)), server.now)
+        }
+        val keepFrom = firstKeptDay("2026-11-05")
+        assertEquals("2026-10-07", keepFrom)
+        assertEquals(4, phone.pruneUsage(keepFrom, server.now))
+        assertEquals(
+            setOf("usage/2026-10-07/phone", "usage/2026-10-07/tv", "usage/2026-11-05/phone", "usage/2026-11-05/tv"),
+            server.tree.keys.filter { it.startsWith("usage/") }.toSet(),
+        )
+        assertEquals(0, phone.pruneUsage(keepFrom, server.now))
     }
 
     @Test

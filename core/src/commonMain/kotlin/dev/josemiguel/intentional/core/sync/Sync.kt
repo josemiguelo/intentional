@@ -6,7 +6,11 @@ import dev.josemiguel.intentional.core.Settings
 import dev.josemiguel.intentional.core.parseGroups
 import dev.josemiguel.intentional.core.toGroupsJson
 import io.ktor.client.HttpClient
+import kotlinx.datetime.DatePeriod
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.minus
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.int
@@ -28,6 +32,8 @@ import kotlinx.serialization.json.put
  * - `limits/<group id>`: {minutes, changedAt} in the clear, because the
  *   server's rules enforce the once-a-week change on them.
  *
+ * Usage older than [KEEP_DAYS] is pruned ([pruneUsage]): only history.
+ *
  * Calls are plain suspend functions: callers run them off their main loop
  * and keep enforcing with the last known numbers when offline.
  */
@@ -46,6 +52,24 @@ class Sync(private val config: SyncConfig, http: HttpClient = defaultHttpClient(
             // One device's unreadable entry (an old key) mustn't stop the rest.
             runCatching { device to DayUsage.parse(vault.open(sealed.jsonPrimitive.content)) }.getOrNull()
         }.toMap()
+    }
+
+    /**
+     * Drops every device's usage for days before [keepFrom] (yyyy-mm-dd),
+     * one entry at a time (the rules allow writes per device). Returns how
+     * many went. Only today's usage counts toward budgets, so this is only
+     * history; any device may do it.
+     */
+    suspend fun pruneUsage(keepFrom: String, nowMs: Long): Int {
+        val days = firebase.read("usage", nowMs, shallow = true)?.jsonObject?.keys ?: return 0
+        var dropped = 0
+        for (day in days.filter { it < keepFrom }) {
+            val devices = firebase.read("usage/$day", nowMs, shallow = true)?.jsonObject?.keys ?: continue
+            for (device in devices) {
+                if (firebase.write("usage/$day/$device", JsonNull, nowMs)) dropped++
+            }
+        }
+        return dropped
     }
 
     suspend fun groups(nowMs: Long): SyncedGroups? =
@@ -240,6 +264,13 @@ private fun parseConsidered(raw: String): Map<String, Int> = considered.decodeFr
 fun Map<String, Int>.toConsideredJson(): String = considered.encodeToString(this)
 
 fun parseConsideredJson(raw: String): Map<String, Int> = parseConsidered(raw)
+
+/** How many days of usage are kept (in Firebase and on each device). */
+const val KEEP_DAYS = 30
+
+/** The first day kept on [today] (both yyyy-mm-dd): [KEEP_DAYS] including today. */
+fun firstKeptDay(today: String): String =
+    LocalDate.parse(today).minus(DatePeriod(days = KEEP_DAYS - 1)).toString()
 
 @Serializable
 data class Limit(val minutes: Int, val changedAt: Long)

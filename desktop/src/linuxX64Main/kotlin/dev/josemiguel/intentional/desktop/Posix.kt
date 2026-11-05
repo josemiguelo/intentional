@@ -9,6 +9,7 @@ import kotlinx.cinterop.convert
 import kotlinx.cinterop.cstr
 import kotlinx.cinterop.get
 import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.pointed
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.set
@@ -153,6 +154,19 @@ fun writeText(path: String, text: String) {
     writeAll(fd, text.encodeToByteArray())
     close(fd)
     rename(tmp, path)
+}
+
+/** The names in a directory, without "." and "..". */
+fun listDir(path: String): List<String> {
+    val dir = platform.posix.opendir(path) ?: return emptyList()
+    val names = mutableListOf<String>()
+    while (true) {
+        val entry = platform.posix.readdir(dir) ?: break
+        val name = entry.pointed.d_name.toKString()
+        if (name != "." && name != "..") names += name
+    }
+    platform.posix.closedir(dir)
+    return names
 }
 
 fun mkdirs(path: String) {

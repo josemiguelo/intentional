@@ -4,7 +4,7 @@ import dev.josemiguel.intentional.core.DayUsage
 import dev.josemiguel.intentional.core.parseGroups
 import dev.josemiguel.intentional.core.usedMs
 
-const val VERSION = "0.5.0"
+const val VERSION = "0.5.1"
 
 /**
  * `intentional` runs the daemon; `intentional status` prints today's budget

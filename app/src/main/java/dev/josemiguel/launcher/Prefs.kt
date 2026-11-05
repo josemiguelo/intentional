@@ -211,6 +211,13 @@ class Prefs(context: Context) {
         return total
     }
 
+    /** Drops per-site time for days before [keepFrom] (yyyy-mm-dd); returns how many entries went. */
+    fun pruneSiteTime(keepFrom: String): Int {
+        val old = sp.all.keys.filter { it.startsWith("site-") && it.removePrefix("site-").take(10) < keepFrom }
+        if (old.isNotEmpty()) sp.edit().apply { old.forEach(::remove) }.apply()
+        return old.size
+    }
+
     /** Today's on-screen time per host, in ms. */
     fun sitesToday(): Map<String, Long> {
         val prefix = "site-${todaySuffix()}-"

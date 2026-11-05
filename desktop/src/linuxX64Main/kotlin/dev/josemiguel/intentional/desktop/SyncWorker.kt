@@ -10,6 +10,7 @@ import dev.josemiguel.intentional.core.sync.SyncConfig
 import dev.josemiguel.intentional.core.sync.SyncedConsidered
 import dev.josemiguel.intentional.core.sync.SyncedGroups
 import dev.josemiguel.intentional.core.sync.SyncedSettings
+import dev.josemiguel.intentional.core.sync.firstKeptDay
 import dev.josemiguel.intentional.core.sync.parseConsideredJson
 import dev.josemiguel.intentional.core.sync.toConsideredJson
 import dev.josemiguel.intentional.core.toGroupsJson
@@ -39,6 +40,9 @@ class SyncWorker(private val config: SyncConfig) {
     data class Remote(val day: String, val others: DayUsage)
 
     private val outbox = AtomicReference<Pair<String, DayUsage>?>(null)
+
+    /** The day old usage was last pruned (here and in Firebase): once a day is plenty. */
+    private var prunedOn: String? = null
     private val inbox = AtomicReference<Remote?>(null)
 
     /** The daemon's day so far (only group time leaves the machine). */
@@ -118,6 +122,13 @@ class SyncWorker(private val config: SyncConfig) {
         }
 
         val (day, mine) = outbox.value ?: return
+        if (prunedOn != day) {
+            val keepFrom = firstKeptDay(day)
+            val dropped = sync.pruneUsage(keepFrom, now)
+            val local = pruneLocalUsage(keepFrom)
+            if (dropped + local > 0) log("sync: pruned usage before $keepFrom ($dropped synced, $local local)")
+            prunedOn = day
+        }
         val others = sync.exchangeUsage(day, mine, now).values.fold(DayUsage()) { a, b -> a + b }
         writeText(Paths.remoteUsage(day), others.toJson())
         inbox.value = Remote(day, others)

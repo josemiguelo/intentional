@@ -40,6 +40,10 @@ while the screen is on):
 - Desktop apps are `hypr:<window class>` in groups; Android packages and site
   domains need no prefix.
 
+Usage is history after its day, so it's kept for 30 days: once a day a
+syncing device deletes every device's older days in Firebase (and its own:
+the desktop's day files, the phone's per-site time).
+
 Cost: the free (Spark) plan, with a wide margin: three devices every minute
 all day is ~4,300 small writes and ~270 MB downloaded a month, against
 Realtime Database's 10 GB.

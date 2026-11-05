@@ -34,9 +34,17 @@ class Firebase(private val config: SyncConfig, private val http: HttpClient) {
     private var refreshToken: String? = null
     private var expiresAt = 0L
 
-    /** GET a path under the user's tree; null when nothing is there. */
-    suspend fun read(path: String, nowMs: Long): JsonElement? {
-        val res = withToken(nowMs) { token -> http.get(url(path)) { parameter("auth", token) } }
+    /**
+     * GET a path under the user's tree; null when nothing is there. [shallow]
+     * gets only the keys of its children (each mapped to true), not their data.
+     */
+    suspend fun read(path: String, nowMs: Long, shallow: Boolean = false): JsonElement? {
+        val res = withToken(nowMs) { token ->
+            http.get(url(path)) {
+                parameter("auth", token)
+                if (shallow) parameter("shallow", "true")
+            }
+        }
         val body = res.bodyAsText()
         if (!res.status.isSuccess()) throw SyncException("read $path: ${res.status} $body")
         return Json.parseToJsonElement(body).takeUnless { it == JsonNull }

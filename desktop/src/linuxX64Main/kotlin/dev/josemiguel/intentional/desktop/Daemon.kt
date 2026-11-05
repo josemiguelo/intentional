@@ -353,6 +353,11 @@ fun date(): String = Clock.System.todayIn(TimeZone.currentSystemDefault()).toStr
 
 fun epochMs(): Long = Clock.System.now().toEpochMilliseconds()
 
+/** Deletes this machine's day files (<day>.json, <day>.remote.json) before [keepFrom]; returns how many. */
+fun pruneLocalUsage(keepFrom: String): Int =
+    listDir(Paths.usageDir).filter { it.substringBefore('.') < keepFrom && it.endsWith(".json") }
+        .count { platform.posix.unlink("${Paths.usageDir}/$it") == 0 }
+
 fun loadUsage(day: String): DayUsage =
     readText(Paths.usage(day))?.let { runCatching { DayUsage.parse(it) }.getOrNull() } ?: DayUsage()
 

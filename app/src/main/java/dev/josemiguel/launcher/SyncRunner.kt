@@ -9,6 +9,7 @@ import dev.josemiguel.intentional.core.DayUsage
 import dev.josemiguel.intentional.core.sync.GroupsChange
 import dev.josemiguel.intentional.core.sync.Sync
 import dev.josemiguel.intentional.core.sync.SyncConfig
+import dev.josemiguel.intentional.core.sync.firstKeptDay
 import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
@@ -32,6 +33,9 @@ object SyncRunner {
 
     private var thread: HandlerThread? = null
     private var lastError: String? = null
+
+    /** The day old usage was last pruned (here and in Firebase). */
+    private var prunedOn: String? = null
 
     /** One cycle at a time, even across a stop/start (a guard rebind) mid-cycle. */
     private val cycleLock = Any()
@@ -107,6 +111,12 @@ object SyncRunner {
                 sites = prefs.sitesToday(),
             ).onlyFor(limited)
             val day = LocalDate.now().toString()
+            if (prunedOn != day) {
+                val keepFrom = firstKeptDay(day)
+                val dropped = sync.pruneUsage(keepFrom, now) + prefs.pruneSiteTime(keepFrom)
+                if (dropped > 0) Log.i(TAG, "pruned $dropped usage entries before $keepFrom")
+                prunedOn = day
+            }
             others = day to sync.exchangeUsage(day, mine, now).values.fold(DayUsage()) { a, b -> a + b }
             if (lastError != null) Log.i(TAG, "back")
             lastError = null
