@@ -46,16 +46,39 @@ object Hyprland {
         return Window(cls, address)
     }
 
-    /**
-     * Asks the window to close, as SUPER+Q does. Hyprland 0.56+ takes a Lua
-     * dispatcher expression (its Lua config); older ones the plain form.
-     */
-    fun closeWindow(address: String) {
-        val lua = request("dispatch hl.dsp.window.close({ window = \"address:$address\" })")
-        if (lua?.trim() == "ok") return
-        val legacy = request("dispatch closewindow address:$address")
-        if (legacy?.trim() != "ok") log("close $address failed: ${lua?.trim()} / ${legacy?.trim()}")
+    /** Asks the window to close, as SUPER+Q does. */
+    fun closeWindow(address: String) = dispatch(
+        "hl.dsp.window.close({ window = \"address:$address\" })",
+        "closewindow address:$address",
+    )
+
+    /** Out of sight, onto a special workspace nothing shows, without following it. */
+    fun hide(address: String) = dispatch(
+        "hl.dsp.window.move({ workspace = \"special:$HIDDEN\", follow = false, window = \"address:$address\" })",
+        "movetoworkspacesilent special:$HIDDEN,address:$address",
+    )
+
+    /** Back onto [workspace], following it there, and focused. */
+    fun restore(address: String, workspace: String) {
+        dispatch(
+            "hl.dsp.window.move({ workspace = \"$workspace\", follow = true, window = \"address:$address\" })",
+            "movetoworkspace $workspace,address:$address",
+        )
+        dispatch("hl.dsp.focus({ window = \"address:$address\" })", "focuswindow address:$address")
     }
+
+    /**
+     * Hyprland 0.56+ takes a Lua dispatcher expression (its Lua config);
+     * older ones the plain form.
+     */
+    private fun dispatch(lua: String, legacy: String) {
+        val first = request("dispatch $lua")
+        if (first?.trim() == "ok") return
+        val second = request("dispatch $legacy")
+        if (second?.trim() != "ok") log("dispatch failed: ${first?.trim()} / ${second?.trim()}")
+    }
+
+    private const val HIDDEN = "intentional"
 
     /** Whether a session lock (Omarchy's lock screen) is up; see [monitorsLocked]. */
     fun isLocked(): Boolean = request("j/monitors")?.let(::monitorsLocked) ?: false

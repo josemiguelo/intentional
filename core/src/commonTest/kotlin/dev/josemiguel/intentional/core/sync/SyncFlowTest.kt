@@ -145,6 +145,25 @@ class SyncFlowTest {
     }
 
     @Test
+    fun consideredAppsTravelAndMergeOnAFirstSync() = runTest {
+        val phone = device("phone")
+        val desktop = device("desktop")
+        val first = phone.reconcileConsidered(mapOf("com.twitter.android" to 0, "com.zhiliaoapp.musically.go" to 2), null, server.now)
+        assertEquals(GroupsChange.PUSHED, first.change)
+
+        // The desktop's first sync adds its own, keeping the phone's friction for a shared app.
+        val merged = desktop.reconcileConsidered(mapOf("hypr:steam" to 1, "com.twitter.android" to 3), null, server.now)
+        assertEquals(GroupsChange.PUSHED, merged.change)
+        assertEquals(mapOf("com.twitter.android" to 0, "com.zhiliaoapp.musically.go" to 2, "hypr:steam" to 1), merged.apps)
+
+        server.now += 1_000
+        val back = phone.reconcileConsidered(first.apps, first.synced.copy(updatedAt = first.synced.updatedAt - 1), server.now)
+        assertEquals(GroupsChange.ADOPTED, back.change)
+        assertEquals(merged.apps, back.apps)
+        assertTrue(server.tree.values.none { "steam" in it.toString() }, "only ciphertext reaches the server")
+    }
+
+    @Test
     fun limitsCarryOverOnceThenChangeOnlyWeekly() = runTest {
         val phone = device("phone")
 

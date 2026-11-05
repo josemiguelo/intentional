@@ -15,9 +15,9 @@ import kotlinx.coroutines.runBlocking
 
 /**
  * The phone's (and TV's) half of sync, run by the guard on its own thread
- * every [INTERVAL_MS] while the screen is on: groups and their limits are
- * reconciled with the server (the result lands in [Prefs.groups], which
- * everything already reads), this device's group time goes up and the other
+ * every [INTERVAL_MS] while the screen is on: groups and their limits, and
+ * the considered apps, are reconciled with the server (the result lands in
+ * [Prefs], which everything already reads), this device's group time goes up and the other
  * devices' comes down ([othersToday]), which [UsageStatsRepository]'s budget
  * use adds. Needs files/sync.json (a SyncConfig, dropped in over adb: see
  * [DropIn]); without it, nothing runs. Offline, the last numbers stand.
@@ -85,6 +85,12 @@ object SyncRunner {
             // limits landing here never read as an edit made here.
             if (limited != local) prefs.groups = limited
             prefs.groupsSynced = outcome.synced.copy(groups = limited)
+
+            val consideredHere = prefs.consideredWithFriction
+            val considered = sync.reconcileConsidered(consideredHere, prefs.consideredSynced, now)
+            if (considered.change != GroupsChange.NONE) Log.i(TAG, "considered ${considered.change.name.lowercase()}")
+            if (considered.apps != consideredHere) prefs.consideredWithFriction = considered.apps
+            prefs.consideredSynced = considered.synced
 
             val packages = limited.flatMap { it.packages }.toSet()
             val mine = DayUsage(

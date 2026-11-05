@@ -13,6 +13,11 @@ object Paths {
     /** Sync's secrets (SyncConfig); without it the guard keeps to this machine. */
     val syncConfig get() = "$config/intentional/sync.json"
 
+    /** Apps that open through a pause, with their friction (app id to Friction ordinal). */
+    val considered get() = "$config/intentional/considered.json"
+
+    val consideredSynced get() = "$state/intentional/considered-synced.json"
+
     /** The groups as last synced: what tells a local edit from a remote one. */
     val groupsSynced get() = "$state/intentional/groups-synced.json"
 

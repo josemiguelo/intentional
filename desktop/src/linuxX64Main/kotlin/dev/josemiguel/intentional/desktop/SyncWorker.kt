@@ -6,7 +6,10 @@ import dev.josemiguel.intentional.core.parseGroups
 import dev.josemiguel.intentional.core.sync.GroupsChange
 import dev.josemiguel.intentional.core.sync.Sync
 import dev.josemiguel.intentional.core.sync.SyncConfig
+import dev.josemiguel.intentional.core.sync.SyncedConsidered
 import dev.josemiguel.intentional.core.sync.SyncedGroups
+import dev.josemiguel.intentional.core.sync.parseConsideredJson
+import dev.josemiguel.intentional.core.sync.toConsideredJson
 import dev.josemiguel.intentional.core.toGroupsJson
 import kotlin.concurrent.AtomicReference
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -23,7 +26,8 @@ import kotlinx.serialization.json.JsonElement
  * The desktop's half of sync, on its own thread so the network never stalls
  * the focus loop. Every [INTERVAL_MS] it reconciles groups.json with the
  * synced groups and the server's limits (both written back into the file,
- * which the daemon re-reads), publishes this machine's group time and
+ * which the daemon re-reads) and considered.json with the synced considered
+ * apps, publishes this machine's group time and
  * fetches the other devices' ([latest]). Offline, the daemon keeps the last
  * numbers and the next cycle catches up.
  */
@@ -83,6 +87,19 @@ class SyncWorker(private val config: SyncConfig) {
         if (limited != local) writeText(Paths.groups, pretty(limited))
         record(SyncedGroups(limited, outcome.synced.updatedAt))
 
+        val consideredHere = Considered.load()
+        val syncedConsidered = readText(Paths.consideredSynced)?.let { raw ->
+            runCatching { json.decodeFromString(ConsideredRecord.serializer(), raw) }.getOrNull()
+                ?.let { SyncedConsidered(parseConsideredJson(it.apps), it.updatedAt) }
+        }
+        val considered = sync.reconcileConsidered(consideredHere, syncedConsidered, now)
+        if (considered.change == GroupsChange.ADOPTED) log("sync: considered apps updated from another device")
+        if (considered.apps != consideredHere) Considered.save(considered.apps)
+        writeText(
+            Paths.consideredSynced,
+            json.encodeToString(ConsideredRecord.serializer(), ConsideredRecord(considered.synced.updatedAt, considered.synced.apps.toConsideredJson())),
+        )
+
         val (day, mine) = outbox.value ?: return
         val others = sync.exchangeUsage(day, mine, now).values.fold(DayUsage()) { a, b -> a + b }
         writeText(Paths.remoteUsage(day), others.toJson())
@@ -96,6 +113,9 @@ class SyncWorker(private val config: SyncConfig) {
 
     @Serializable
     private data class Record(val updatedAt: Long, val groups: String)
+
+    @Serializable
+    private data class ConsideredRecord(val updatedAt: Long, val apps: String)
 
     private companion object {
         const val INTERVAL_MS = 60_000L

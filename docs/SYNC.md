@@ -15,6 +15,7 @@ while the screen is on):
 /users/<uid>/
   usage/<day>/<device>   that device's day, sealed
   groups                 {blob: sealed groups, updatedAt}
+  considered             {blob: sealed considered apps and their friction, updatedAt}
   limits/<group id>      {minutes, changedAt}   (in the clear, for the rules)
 ```
 

@@ -11,7 +11,10 @@ import dev.josemiguel.intentional.core.groupOfSite
 import dev.josemiguel.intentional.core.parseGroups
 import dev.josemiguel.intentional.core.siteCovers
 import dev.josemiguel.intentional.core.siteDomain
+import dev.josemiguel.intentional.core.sync.SyncedConsidered
 import dev.josemiguel.intentional.core.sync.SyncedGroups
+import dev.josemiguel.intentional.core.sync.parseConsideredJson
+import dev.josemiguel.intentional.core.sync.toConsideredJson
 import dev.josemiguel.intentional.core.toGroupsJson
 import dev.josemiguel.intentional.core.withApp
 import dev.josemiguel.intentional.core.withGroup
@@ -227,6 +230,31 @@ class Prefs(context: Context) {
             sp.edit().apply {
                 if (value == null) remove("groups_synced").remove("groups_synced_at")
                 else putString("groups_synced", value.groups.toGroupsJson()).putLong("groups_synced_at", value.updatedAt)
+            }.apply()
+        }
+
+    /**
+     * The considered apps with their friction, as sync shares them (app id to
+     * Friction ordinal; desktop apps are "hypr:<class>"). Setting it replaces
+     * both the considered set and each app's friction.
+     */
+    var consideredWithFriction: Map<String, Int>
+        get() = considered.associateWith { frictionFor(it).ordinal }
+        set(value) {
+            considered = value.keys
+            sp.edit().apply { value.forEach { (app, f) -> putInt("friction-$app", f) } }.apply()
+        }
+
+    /** The considered apps as last agreed with the server (sync); null before the first. */
+    var consideredSynced: SyncedConsidered?
+        get() {
+            val raw = sp.getString("considered_synced", null) ?: return null
+            return SyncedConsidered(parseConsideredJson(raw), sp.getLong("considered_synced_at", 0L))
+        }
+        set(value) {
+            sp.edit().apply {
+                if (value == null) remove("considered_synced").remove("considered_synced_at")
+                else putString("considered_synced", value.apps.toConsideredJson()).putLong("considered_synced_at", value.updatedAt)
             }.apply()
         }
 

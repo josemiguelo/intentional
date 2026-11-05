@@ -82,6 +82,22 @@ class Daemon {
     private var locked = false
     private var lastLockCheck = 0L
 
+    private val startedAt = monotonicMs()
+
+    /** Per considered app with an open session: when it last had focus (see [onOpen]). */
+    private val sessions = mutableMapOf<String, Long>()
+
+    /** Considered apps whose windows wait, hidden, on their pause ([PauseUi]). */
+    private val pending = mutableMapOf<String, Pending>()
+
+    private class Pending {
+        /** Each hidden window's address and the workspace it opened on. */
+        val windows = mutableListOf<Pair<String, String>>()
+        val since = monotonicMs()
+        var pauseWindow: String? = null
+        var pauseGoneAt: Long? = null
+    }
+
     private var lastTick = monotonicMs()
     private var lastEnforce = 0L
     private var lastSave = monotonicMs()
@@ -134,6 +150,8 @@ class Daemon {
     private fun onEvent(line: String) {
         val (name, data) = line.split(">>", limit = 2).takeIf { it.size == 2 } ?: return
         when (name) {
+            "openwindow" -> onOpen(data)
+            "closewindow" -> onClose("0x$data")
             "activewindow" -> focusedClass = data.substringBefore(',').ifEmpty { null }
             "activewindowv2" -> {
                 credit()
@@ -141,6 +159,55 @@ class Daemon {
                 focused = if (data.isEmpty() || cls == null) null else Hyprland.Window(cls, "0x$data")
                 enforce()
             }
+        }
+    }
+
+    /**
+     * "openwindow>>ADDRESS,WORKSPACE,CLASS,TITLE". A considered app's new
+     * window is hidden and its pause comes up, unless it has a session (its
+     * pause said open, and it hasn't been away [AWAY_MS] since) or the
+     * daemon only just started (apps autostarting with the session).
+     */
+    private fun onOpen(data: String) {
+        val parts = data.split(',', limit = 4)
+        if (parts.size < 3) return
+        val address = "0x${parts[0]}"
+        val workspace = parts[1]
+        val cls = parts[2]
+        if (cls == PauseUi.CLASS) {
+            pending.values.firstOrNull { it.pauseWindow == null }?.pauseWindow = address
+            return
+        }
+        val app = appId(cls)
+        if (monotonicMs() - startedAt < STARTUP_GRACE_MS) return
+        if (Considered.frictionOf(app) == null) return
+        val session = sessions[app]
+        if (session != null && monotonicMs() - session < AWAY_MS) return
+        sessions.remove(app)
+        Hyprland.hide(address)
+        val waiting = pending.getOrPut(app) {
+            log("pause: $cls")
+            PauseUi.launch(app)
+            Pending()
+        }
+        waiting.windows += address to workspace
+    }
+
+    /** A pause window closing without a decision counts as close, once its decision has had time to arrive. */
+    private fun onClose(address: String) {
+        pending.values.firstOrNull { it.pauseWindow == address }?.pauseGoneAt = monotonicMs()
+        pending.values.forEach { p -> p.windows.removeAll { it.first == address } }
+    }
+
+    /** {"type":"pause","app":"hypr:steam","decision":"open"|"close"}, from the pause. */
+    private fun onDecision(app: String, open: Boolean) {
+        val waiting = pending.remove(app) ?: return
+        log("pause: ${app.removePrefix("hypr:")} · ${if (open) "open" else "close"}")
+        if (open) {
+            sessions[app] = monotonicMs()
+            waiting.windows.forEach { (address, workspace) -> Hyprland.restore(address, workspace) }
+        } else {
+            waiting.windows.forEach { (address, _) -> Hyprland.closeWindow(address) }
         }
     }
 
@@ -152,6 +219,10 @@ class Daemon {
     /** {"type":"tab","host":"x.com","focused":true}: the active tab of the last focused Brave window. */
     private fun onMessage(line: String) {
         val o = runCatching { Json.parseToJsonElement(line).jsonObject }.getOrNull() ?: return
+        if (o["type"]?.jsonPrimitive?.contentOrNull == "pause") {
+            val app = o["app"]?.jsonPrimitive?.contentOrNull ?: return
+            return onDecision(app, o["decision"]?.jsonPrimitive?.contentOrNull == "open")
+        }
         if (o["type"]?.jsonPrimitive?.contentOrNull != "tab") return
         if (o["focused"]?.jsonPrimitive?.booleanOrNull == false) return
         credit()
@@ -171,6 +242,10 @@ class Daemon {
             }
         }
         credit()
+        // A pause left without a decision (its window closed, or forgotten) closes its app.
+        pending.filterValues { p ->
+            p.pauseGoneAt?.let { now - it > DECISION_GRACE_MS } == true || now - p.since > PAUSE_MAX_MS
+        }.keys.forEach { onDecision(it, open = false) }
         if (now - lastEnforce >= ENFORCE_MS) enforce()
         if (now - lastSave >= SAVE_MS) save()
     }
@@ -184,6 +259,8 @@ class Daemon {
         // A long gap means the loop didn't run (suspend): count none of it.
         if (ms <= 0 || ms > MAX_CREDIT_MS || locked) return
         val window = focused?.takeUnless { it.cls in NOT_COUNTED } ?: return
+        // While a considered app has focus its session stays open.
+        appId(window.cls).let { if (it in sessions) sessions[it] = now }
         usage = if (isBrowser(window.cls)) {
             val host = browserHost ?: return
             usage.plusSite(host, ms)
@@ -256,9 +333,13 @@ class Daemon {
         const val MAX_CREDIT_MS = 5_000L
         const val CLOSE_DEBOUNCE_MS = 3_000L
         const val LOCK_CHECK_MS = 2_000L
+        const val AWAY_MS = 5 * 60_000L
+        const val STARTUP_GRACE_MS = 30_000L
+        const val DECISION_GRACE_MS = 2_000L
+        const val PAUSE_MAX_MS = 15 * 60_000L
 
-        /** Windows that are nobody's time: Omarchy's screensaver. */
-        val NOT_COUNTED = setOf("org.omarchy.screensaver")
+        /** Windows that are nobody's time: Omarchy's screensaver, the pause itself. */
+        val NOT_COUNTED = setOf("org.omarchy.screensaver", PauseUi.CLASS)
 
         /** A window class as groups and the ledger name it, apart from Android packages. */
         fun appId(cls: String) = "hypr:$cls"

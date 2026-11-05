@@ -17,10 +17,12 @@ fun main(args: Array<String>) {
         args.any { it.startsWith("chrome-extension://") } -> NativeHost.run()
         args.firstOrNull() == "status" -> status()
         args.firstOrNull() == "apps" -> GroupsCli.apps()
+        args.firstOrNull() == "pause" && args.size == 2 -> PauseUi.run(args[1])
         args.firstOrNull() == "group" -> GroupsCli.run(args.drop(1))
+        args.firstOrNull() in setOf("consider", "unconsider", "considered") -> Considered.run(args.first(), args.drop(1))
         args.firstOrNull() == "--version" -> println("intentional $VERSION")
         args.isEmpty() || args.first() == "daemon" -> Daemon().run()
-        else -> println("usage: intentional [daemon | status | apps | group … | --version]")
+        else -> println("usage: intentional [daemon | status | apps | group … | consider … | unconsider … | considered | --version]")
     }
 }
 

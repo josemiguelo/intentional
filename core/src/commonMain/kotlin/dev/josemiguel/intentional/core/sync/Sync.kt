@@ -20,6 +20,8 @@ import kotlinx.serialization.json.put
  * - `usage/<day>/<device>`: each device's day, sealed. Each device writes
  *   only its own, so nothing ever conflicts; a group's use is the sum.
  * - `groups`: {blob, updatedAt}, sealed; the newest edit wins.
+ * - `considered`: {blob, updatedAt}, sealed: the apps that open through a
+ *   pause, each with its friction (an ordinal of Friction); likewise.
  * - `limits/<group id>`: {minutes, changedAt} in the clear, because the
  *   server's rules enforce the once-a-week change on them.
  *
@@ -43,17 +45,24 @@ class Sync(private val config: SyncConfig, http: HttpClient = defaultHttpClient(
         }.toMap()
     }
 
-    suspend fun groups(nowMs: Long): SyncedGroups? {
-        val o = firebase.read("groups", nowMs)?.jsonObject ?: return null
+    suspend fun groups(nowMs: Long): SyncedGroups? =
+        readSealed("groups", nowMs)?.let { (raw, at) -> SyncedGroups(parseGroups(raw), at) }
+
+    suspend fun putGroups(groups: List<AppGroup>, updatedAt: Long, nowMs: Long) =
+        writeSealed("groups", groups.toGroupsJson(), updatedAt, nowMs)
+
+    /** A {blob, updatedAt} node, opened: the plain text and its time. */
+    private suspend fun readSealed(path: String, nowMs: Long): Pair<String, Long>? {
+        val o = firebase.read(path, nowMs)?.jsonObject ?: return null
         val blob = o["blob"]?.jsonPrimitive?.content ?: return null
-        return SyncedGroups(parseGroups(vault.open(blob)), o["updatedAt"]?.jsonPrimitive?.long ?: 0L)
+        return vault.open(blob) to (o["updatedAt"]?.jsonPrimitive?.long ?: 0L)
     }
 
-    suspend fun putGroups(groups: List<AppGroup>, updatedAt: Long, nowMs: Long) {
+    private suspend fun writeSealed(path: String, plain: String, updatedAt: Long, nowMs: Long) {
         firebase.write(
-            "groups",
+            path,
             buildJsonObject {
-                put("blob", vault.seal(groups.toGroupsJson()))
+                put("blob", vault.seal(plain))
                 put("updatedAt", updatedAt)
             },
             nowMs,
@@ -100,23 +109,55 @@ class Sync(private val config: SyncConfig, http: HttpClient = defaultHttpClient(
      * [GroupsOutcome.groups] and [GroupsOutcome.synced].
      */
     suspend fun reconcileGroups(local: List<AppGroup>, synced: SyncedGroups?, nowMs: Long): GroupsOutcome {
-        val remote = groups(nowMs)
-        return when {
-            synced == null && remote != null -> {
-                val merged = mergeGroups(remote.groups, local)
-                if (merged == remote.groups) GroupsOutcome(merged, remote, GroupsChange.ADOPTED)
-                else {
-                    putGroups(merged, nowMs, nowMs)
-                    GroupsOutcome(merged, SyncedGroups(merged, nowMs), GroupsChange.PUSHED)
-                }
-            }
-            synced == null || local != synced.groups -> {
-                putGroups(local, nowMs, nowMs)
-                GroupsOutcome(local, SyncedGroups(local, nowMs), GroupsChange.PUSHED)
-            }
-            remote != null && remote.updatedAt > synced.updatedAt -> GroupsOutcome(remote.groups, remote, GroupsChange.ADOPTED)
-            else -> GroupsOutcome(local, synced, GroupsChange.NONE)
+        val (value, record, change) = reconcile(
+            local, synced?.let { it.groups to it.updatedAt }, groups(nowMs)?.let { it.groups to it.updatedAt },
+            merge = ::mergeGroups,
+        ) { putGroups(it, nowMs, nowMs); nowMs }
+        return GroupsOutcome(value, SyncedGroups(record.first, record.second), change)
+    }
+
+    /**
+     * The considered apps (app id to Friction ordinal) against the synced
+     * ones, exactly as [reconcileGroups]: a first sync merges (each device
+     * knows its own apps; the synced friction wins for an app both have),
+     * then the newest edit wins.
+     */
+    suspend fun reconcileConsidered(
+        local: Map<String, Int>,
+        synced: SyncedConsidered?,
+        nowMs: Long,
+    ): ConsideredOutcome {
+        val remote = readSealed("considered", nowMs)?.let { (raw, at) -> parseConsidered(raw) to at }
+        val (value, record, change) = reconcile(
+            local, synced?.let { it.apps to it.updatedAt }, remote,
+            merge = { base, other -> other + base },
+        ) { writeSealed("considered", considered.encodeToString(it), nowMs, nowMs); nowMs }
+        return ConsideredOutcome(value, SyncedConsidered(record.first, record.second), change)
+    }
+
+    /**
+     * The one rule for a sealed, newest-edit-wins value: [synced] is what
+     * this device last agreed with the server (null before its first sync),
+     * [remote] what the server has. A first sync merges and pushes the merge
+     * if it adds anything; after that a local edit (local differs from
+     * [synced]) goes up ([push], which returns its time), and a newer edit
+     * from elsewhere comes down.
+     */
+    private suspend fun <T> reconcile(
+        local: T,
+        synced: Pair<T, Long>?,
+        remote: Pair<T, Long>?,
+        merge: (base: T, other: T) -> T,
+        push: suspend (T) -> Long,
+    ): Triple<T, Pair<T, Long>, GroupsChange> = when {
+        synced == null && remote != null -> {
+            val merged = merge(remote.first, local)
+            if (merged == remote.first) Triple(merged, remote, GroupsChange.ADOPTED)
+            else Triple(merged, merged to push(merged), GroupsChange.PUSHED)
         }
+        synced == null || local != synced.first -> Triple(local, local to push(local), GroupsChange.PUSHED)
+        remote != null && remote.second > synced.second -> Triple(remote.first, remote, GroupsChange.ADOPTED)
+        else -> Triple(local, synced, GroupsChange.NONE)
     }
 
     /**
@@ -162,6 +203,20 @@ fun mergeGroups(base: List<AppGroup>, other: List<AppGroup>): List<AppGroup> {
 }
 
 data class GroupsOutcome(val groups: List<AppGroup>, val synced: SyncedGroups, val change: GroupsChange)
+
+/** Considered apps (app id to Friction ordinal) as last agreed with the server. */
+data class SyncedConsidered(val apps: Map<String, Int>, val updatedAt: Long)
+
+data class ConsideredOutcome(val apps: Map<String, Int>, val synced: SyncedConsidered, val change: GroupsChange)
+
+private val considered = kotlinx.serialization.json.Json
+
+private fun parseConsidered(raw: String): Map<String, Int> = considered.decodeFromString(raw)
+
+/** Considered apps as JSON, for a device's own record of what it last synced. */
+fun Map<String, Int>.toConsideredJson(): String = considered.encodeToString(this)
+
+fun parseConsideredJson(raw: String): Map<String, Int> = parseConsidered(raw)
 
 @Serializable
 data class Limit(val minutes: Int, val changedAt: Long)

@@ -15,6 +15,10 @@
           ".write": "auth != null && auth.uid === $uid",
           ".validate": "newData.hasChildren(['blob', 'updatedAt']) && newData.child('blob').isString() && newData.child('updatedAt').isNumber()"
         },
+        "considered": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.hasChildren(['blob', 'updatedAt']) && newData.child('blob').isString() && newData.child('updatedAt').isNumber()"
+        },
         "limits": {
           "$group": {
             ".write": "auth != null && auth.uid === $uid && (!data.exists() || now - data.child('changedAt').val() >= 604800000)",

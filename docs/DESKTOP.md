@@ -59,9 +59,37 @@ it back.
 **Releasing:** bump `VERSION` in `desktop/.../Main.kt`, then tag `v<VERSION>`
 and push the tag.
 
+## Groups and considered apps from the command line
+
+The phone can't see desktop apps, so the desktop puts its own in groups, as
+`hypr:<window class>` (with sync on, every device gets the edit within a
+minute):
+
+```sh
+intentional apps                          # today's window classes, time, group
+intentional group list
+intentional group add youtube freetube    # or --focused, from a keybinding
+intentional group remove youtube freetube
+intentional group limit youtube 20        # once a week; with sync, the server decides
+```
+
+**Considered apps** open through a pause, as on the phone: a new window of
+one is hidden (on `special:intentional`) while the pause breathes in a
+terminal of its own (kitty, alacritty, ghostty or foot); **c** closes the app,
+**o** shows it once the pause is done. After **open**, coming back within 5
+minutes of leaving doesn't pause again; apps opening in the first 30 seconds
+of the session (autostart) aren't paused. The friction ladder is the
+phone's: `pause`, `long`, `type` (type its name), `night` (locked during
+wind-down, 22:00–06:00 here). The list is shared with the phone through sync.
+
+```sh
+intentional consider steam long           # or --focused
+intentional unconsider steam
+intentional considered
+```
+
 ## Not yet
 
-- The pause for considered apps.
 - Browsers other than Brave, and sites reached outside a browser (DNS
   blocking would cover those).
 
