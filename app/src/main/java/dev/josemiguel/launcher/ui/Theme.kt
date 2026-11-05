@@ -2,6 +2,7 @@ package dev.josemiguel.launcher.ui
 
 import android.content.Context
 import android.content.res.Configuration
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -65,11 +66,22 @@ data class Palette(
 
 private val LocalPalette = staticCompositionLocalOf { Palette.Night }
 
-/** Follows the system's dark/light setting; there is no in-app switch. */
+/**
+ * Follows the system's dark/light setting; there is no in-app switch. On a
+ * [tv], clickable rows show focus with [FocusIndication].
+ */
 @Composable
-fun LauncherPalette(content: @Composable () -> Unit) {
+fun LauncherPalette(tv: Boolean = false, content: @Composable () -> Unit) {
     val palette = if (isSystemInDarkTheme()) Palette.Night else Palette.Day
-    CompositionLocalProvider(LocalPalette provides palette, content = content)
+    if (tv) {
+        CompositionLocalProvider(
+            LocalPalette provides palette,
+            LocalIndication provides FocusIndication(palette.panel, palette.accent),
+            content = content,
+        )
+    } else {
+        CompositionLocalProvider(LocalPalette provides palette, content = content)
+    }
 }
 
 /** Omarchy-style: monospace, one accent, framed panels over the wallpaper (see [panel]). */

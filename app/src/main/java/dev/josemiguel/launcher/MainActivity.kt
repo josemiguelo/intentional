@@ -159,7 +159,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            LauncherPalette {
+            LauncherPalette(tv = isTv) {
                 Box(Modifier.fillMaxSize().background(LauncherTheme.background)) {
                     // Edge to edge, under the system bars too.
                     if (screen == Screen.Home || screen.isFramed) Wallpaper()

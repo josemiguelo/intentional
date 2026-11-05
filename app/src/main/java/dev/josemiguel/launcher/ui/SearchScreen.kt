@@ -77,6 +77,7 @@ fun SearchScreen(
                 }),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .dpadLeavesField()
                     .focusRequester(focusRequester),
             )
         }

@@ -290,6 +290,8 @@ private fun TextEntryDialog(
                 cursorBrush = SolidColor(LauncherTheme.ink),
                 modifier = Modifier
                     .fillMaxWidth()
+                    // A multi-line field still needs up/down for its own lines.
+                    .then(if (singleLine) Modifier.dpadLeavesField() else Modifier)
                     .padding(vertical = 12.dp),
             )
             Row {

@@ -153,7 +153,7 @@ fun PauseScreen(
                 singleLine = true,
                 textStyle = LauncherTheme.body.copy(textAlign = TextAlign.Center),
                 cursorBrush = SolidColor(LauncherTheme.ink),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().dpadLeavesField(),
             )
             Text(
                 "type “${app.label.lowercase()}” to open",

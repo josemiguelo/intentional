@@ -115,7 +115,7 @@ fun SettingsAppsScreen(
                     singleLine = true,
                     textStyle = LauncherTheme.body,
                     cursorBrush = SolidColor(LauncherTheme.ink),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().dpadLeavesField(),
                 )
             }
         }

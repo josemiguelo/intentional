@@ -206,7 +206,7 @@ private fun GroupTextDialog(
                 singleLine = true,
                 textStyle = LauncherTheme.item,
                 cursorBrush = SolidColor(LauncherTheme.ink),
-                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                modifier = Modifier.fillMaxWidth().dpadLeavesField().padding(vertical = 12.dp),
             )
             if (invalid && invalidMessage != null) {
                 Text(invalidMessage, style = LauncherTheme.caption.copy(color = LauncherTheme.faint))
