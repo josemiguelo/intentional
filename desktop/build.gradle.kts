@@ -23,6 +23,8 @@ kotlin {
         linuxX64Main.dependencies {
             implementation(project(":core"))
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+            implementation("io.ktor:ktor-client-core:3.2.3")
         }
         linuxX64Test.dependencies {
             implementation(kotlin("test"))

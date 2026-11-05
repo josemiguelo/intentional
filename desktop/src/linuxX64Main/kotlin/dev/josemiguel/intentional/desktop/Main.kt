@@ -1,5 +1,6 @@
 package dev.josemiguel.intentional.desktop
 
+import dev.josemiguel.intentional.core.DayUsage
 import dev.josemiguel.intentional.core.parseGroups
 import dev.josemiguel.intentional.core.usedMs
 
@@ -20,11 +21,18 @@ fun main(args: Array<String>) {
     }
 }
 
-/** As of the daemon's last save (every 10 seconds). */
+/**
+ * As of the daemon's last save (every 10 seconds), plus the other devices'
+ * time as of its last sync. With sync, groups.json's limits are the
+ * server's.
+ */
 private fun status() {
     val groups = readText(Paths.groups)?.let(::parseGroups).orEmpty()
     if (groups.isEmpty()) return println("no groups in ${Paths.groups}")
-    val usage = loadUsage(date())
+    val day = date()
+    val others = readText(Paths.remoteUsage(day))?.let { runCatching { DayUsage.parse(it) }.getOrNull() }
+    val usage = loadUsage(day).let { if (others != null) it + others else it }
+    if (others != null) println("(all devices)")
     groups.forEach { g ->
         val used = g.usedMs(usage) / 60_000
         val mark = if (used >= g.limitMinutes) "  · used up" else ""

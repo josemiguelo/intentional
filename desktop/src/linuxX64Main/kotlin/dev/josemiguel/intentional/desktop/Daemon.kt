@@ -4,6 +4,7 @@ import dev.josemiguel.intentional.core.AppGroup
 import dev.josemiguel.intentional.core.DayUsage
 import dev.josemiguel.intentional.core.isOverBudget
 import dev.josemiguel.intentional.core.parseGroups
+import dev.josemiguel.intentional.core.sync.SyncConfig
 import kotlin.concurrent.AtomicInt
 import kotlinx.cinterop.allocArray
 import kotlinx.cinterop.convert
@@ -71,6 +72,13 @@ class Daemon {
 
     private val clients = mutableMapOf<Int, LineReader>()
 
+    /** Sync with the other devices, when this machine has a [Paths.syncConfig]. */
+    private val sync = readText(Paths.syncConfig)?.let { raw ->
+        runCatching { SyncWorker(SyncConfig.parse(raw)) }
+            .onFailure { log("sync: unreadable ${Paths.syncConfig}: ${it.message}") }
+            .getOrNull()
+    }
+
     private var locked = false
     private var lastLockCheck = 0L
 
@@ -91,7 +99,8 @@ class Daemon {
         focused = Hyprland.activeWindow()
         focusedClass = focused?.cls
         val listener = listenUnix(Paths.socket)
-        log("running: ${groups.size} groups, focused ${focused?.cls}")
+        sync?.start()
+        log("running: ${groups.size} groups, focused ${focused?.cls}, sync ${if (sync != null) "on" else "off"}")
 
         val eventLines = LineReader()
         val buf = ByteArray(8192)
@@ -178,19 +187,23 @@ class Daemon {
         usage = if (isBrowser(window.cls)) {
             val host = browserHost ?: return
             usage.plusSite(host, ms)
-        } else usage.plusApp(window.cls, ms)
+        } else usage.plusApp(appId(window.cls), ms)
     }
 
     private fun enforce() {
         lastEnforce = monotonicMs()
         reloadGroups()
-        val over = groups.filter { it.isOverBudget(usage) }
+        sync?.publish(today, usage.onlyFor(groups))
+        // With sync, a group's budget is spent across devices (its limit, the
+        // server's, arrives through groups.json).
+        val spent = sync?.latest()?.takeIf { it.day == today }?.let { usage + it.others } ?: usage
+        val over = groups.filter { it.isOverBudget(spent) }
 
         (over.map { it.name }.toSet() - overGroups).forEach { notify("$it · budget used today") }
         overGroups = over.map { it.name }.toSet()
 
         val window = focused
-        if (window != null && !isBrowser(window.cls) && over.any { window.cls in it.packages }) {
+        if (window != null && !isBrowser(window.cls) && over.any { appId(window.cls) in it.packages }) {
             val now = monotonicMs()
             if (now - (closedAt[window.address] ?: 0L) > CLOSE_DEBOUNCE_MS) {
                 closedAt[window.address] = now
@@ -247,12 +260,17 @@ class Daemon {
         /** Windows that are nobody's time: Omarchy's screensaver. */
         val NOT_COUNTED = setOf("org.omarchy.screensaver")
 
+        /** A window class as groups and the ledger name it, apart from Android packages. */
+        fun appId(cls: String) = "hypr:$cls"
+
         /** Brave windows, its web-app windows included ("brave-claude.ai__-Default"). */
         fun isBrowser(cls: String) = cls == "brave-browser" || cls.startsWith("brave-")
     }
 }
 
 fun date(): String = Clock.System.todayIn(TimeZone.currentSystemDefault()).toString()
+
+fun epochMs(): Long = Clock.System.now().toEpochMilliseconds()
 
 fun loadUsage(day: String): DayUsage =
     readText(Paths.usage(day))?.let { runCatching { DayUsage.parse(it) }.getOrNull() } ?: DayUsage()

@@ -10,6 +10,15 @@ object Paths {
 
     val usageDir get() = "$state/intentional/usage"
 
+    /** Sync's secrets (SyncConfig); without it the guard keeps to this machine. */
+    val syncConfig get() = "$config/intentional/sync.json"
+
+    /** The groups as last synced: what tells a local edit from a remote one. */
+    val groupsSynced get() = "$state/intentional/groups-synced.json"
+
+    /** The other devices' time today, as last fetched, for `status`. */
+    fun remoteUsage(day: String) = "$state/intentional/usage/$day.remote.json"
+
     fun usage(day: String) = "$usageDir/$day.json"
 
     /** The daemon's socket, where the extension's native host connects. */

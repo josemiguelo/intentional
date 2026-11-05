@@ -89,7 +89,57 @@ class Sync(private val config: SyncConfig, http: HttpClient = defaultHttpClient(
         )
 
     fun groupId(name: String): String = vault.groupId(name)
+
+    /**
+     * This device's groups against the synced ones. [synced] is what this
+     * device last agreed with the server (null before its first sync). The
+     * first sync takes the server's groups if it has any (another device got
+     * there first); after that a local edit (local differs from [synced])
+     * goes up, and a newer edit from elsewhere comes down. The caller stores
+     * [GroupsOutcome.groups] and [GroupsOutcome.synced].
+     */
+    suspend fun reconcileGroups(local: List<AppGroup>, synced: SyncedGroups?, nowMs: Long): GroupsOutcome {
+        val remote = groups(nowMs)
+        return when {
+            synced == null && remote != null -> GroupsOutcome(remote.groups, remote, GroupsChange.ADOPTED)
+            synced == null || local != synced.groups -> {
+                putGroups(local, nowMs, nowMs)
+                GroupsOutcome(local, SyncedGroups(local, nowMs), GroupsChange.PUSHED)
+            }
+            remote != null && remote.updatedAt > synced.updatedAt -> GroupsOutcome(remote.groups, remote, GroupsChange.ADOPTED)
+            else -> GroupsOutcome(local, synced, GroupsChange.NONE)
+        }
+    }
+
+    /**
+     * Brings the server's limits to [groups] and returns them with those
+     * limits (and their change dates). A group the server doesn't know yet
+     * carries its limit over (the rules allow it once); when [editedHere], a
+     * changed limit is asked of the server, which refuses within a week of
+     * the last change ([onRefused]) and its limit stands.
+     */
+    suspend fun reconcileLimits(
+        groups: List<AppGroup>,
+        editedHere: Boolean,
+        nowMs: Long,
+        onRefused: (AppGroup, Limit) -> Unit = { _, _ -> },
+    ): List<AppGroup> {
+        val limits = limits(nowMs)
+        for (g in groups) {
+            val server = limits[groupId(g.name)]
+            when {
+                server == null -> putLimit(g.name, g.limitMinutes, nowMs, carriedChangedAt = g.limitChangedAt)
+                editedHere && server.minutes != g.limitMinutes && !putLimit(g.name, g.limitMinutes, nowMs) ->
+                    onRefused(g, server)
+            }
+        }
+        return groups.withLimits(limits(nowMs), ::groupId)
+    }
 }
+
+enum class GroupsChange { NONE, PUSHED, ADOPTED }
+
+data class GroupsOutcome(val groups: List<AppGroup>, val synced: SyncedGroups, val change: GroupsChange)
 
 @Serializable
 data class Limit(val minutes: Int, val changedAt: Long)
