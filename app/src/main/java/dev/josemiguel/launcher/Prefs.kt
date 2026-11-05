@@ -11,6 +11,7 @@ import dev.josemiguel.intentional.core.groupOfSite
 import dev.josemiguel.intentional.core.parseGroups
 import dev.josemiguel.intentional.core.siteCovers
 import dev.josemiguel.intentional.core.siteDomain
+import dev.josemiguel.intentional.core.sync.SyncedGroups
 import dev.josemiguel.intentional.core.toGroupsJson
 import dev.josemiguel.intentional.core.withApp
 import dev.josemiguel.intentional.core.withGroup
@@ -204,6 +205,30 @@ class Prefs(context: Context) {
         sp.edit().putLong(key, total).apply()
         return total
     }
+
+    /** Today's on-screen time per host, in ms. */
+    fun sitesToday(): Map<String, Long> {
+        val prefix = "site-${todaySuffix()}-"
+        return sp.all.entries
+            .filter { it.key.startsWith(prefix) && it.value is Long }
+            .associate { it.key.removePrefix(prefix) to it.value as Long }
+    }
+
+    /**
+     * The groups as last agreed with the server (sync): what tells an edit
+     * made here from one made elsewhere. Null before the first sync.
+     */
+    var groupsSynced: SyncedGroups?
+        get() {
+            val raw = sp.getString("groups_synced", null) ?: return null
+            return SyncedGroups(parseGroups(raw), sp.getLong("groups_synced_at", 0L))
+        }
+        set(value) {
+            sp.edit().apply {
+                if (value == null) remove("groups_synced").remove("groups_synced_at")
+                else putString("groups_synced", value.groups.toGroupsJson()).putLong("groups_synced_at", value.updatedAt)
+            }.apply()
+        }
 
     /** Today's on-screen time for [domain] and its subdomains, in ms. */
     fun siteTimeToday(domain: String): Long {

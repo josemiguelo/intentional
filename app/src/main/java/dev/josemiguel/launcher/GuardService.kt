@@ -157,6 +157,7 @@ class GuardService : AccessibilityService() {
         registerMediaSessionListener()
         registerReceiver(screenOff, IntentFilter(Intent.ACTION_SCREEN_OFF))
         screenOffRegistered = true
+        SyncRunner.start(this)
     }
 
     /**
@@ -552,6 +553,7 @@ class GuardService : AccessibilityService() {
         hideShield.run()
         handler.removeCallbacks(graceOver)
         endSiteBlock()
+        SyncRunner.stop()
         siteTracker.stop()
         if (screenOffRegistered) unregisterReceiver(screenOff)
         screenOffRegistered = false

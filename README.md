@@ -33,8 +33,9 @@ runs beside the stock launcher: the guard enforces budgets and puts a
 considered app's pause in front of it however it's opened (setup in
 [docs/SETUP.md](docs/SETUP.md)). On **Omarchy / Hyprland** a Kotlin/Native
 daemon and a Brave extension count and enforce app and site time
-([docs/DESKTOP.md](docs/DESKTOP.md)). The platform-free rules are shared in
-`core/`.
+([docs/DESKTOP.md](docs/DESKTOP.md)). With [sync](docs/SYNC.md) a budget is
+spent across all of them, through an end-to-end-encrypted Firebase database.
+The platform-free rules and sync are shared in `core/`.
 
 ## Build & install
 

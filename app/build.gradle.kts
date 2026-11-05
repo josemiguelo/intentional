@@ -42,6 +42,7 @@ kotlin {
 
 dependencies {
     implementation(project(":core"))
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     implementation(platform("androidx.compose:compose-bom:2025.04.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")

@@ -24,6 +24,10 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
+      # Ktor's curl engine (sync) links libcurl.
+      - name: libcurl
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
+
       # Kotlin/Native's toolchain (LLVM, sysroot), a few hundred MB per fresh download.
       - uses: actions/cache@v6
         with:

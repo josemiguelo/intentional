@@ -24,7 +24,7 @@ kotlin {
             api("org.jetbrains.kotlinx:kotlinx-datetime:0.6.2")
             // Sync: Firebase over REST, encrypted on the device. Versions built
             // on Kotlin <= 2.1.21, which Kotlin/Native needs.
-            implementation("io.ktor:ktor-client-core:3.2.3")
+            api("io.ktor:ktor-client-core:3.2.3")
             implementation("dev.whyoleg.cryptography:cryptography-core:0.4.0")
         }
         jvmMain.dependencies {
