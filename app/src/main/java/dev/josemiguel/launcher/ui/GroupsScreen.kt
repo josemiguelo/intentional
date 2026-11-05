@@ -23,7 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import dev.josemiguel.launcher.AppGroup
+import dev.josemiguel.intentional.core.AppGroup
 import dev.josemiguel.launcher.Prefs
 
 /**

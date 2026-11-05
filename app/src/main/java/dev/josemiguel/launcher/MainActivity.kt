@@ -1,11 +1,11 @@
 package dev.josemiguel.launcher
 
+import android.Manifest
 import android.app.role.RoleManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.Manifest
 import android.content.pm.PackageManager
 import android.database.ContentObserver
 import android.net.Uri
@@ -29,6 +29,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.app.NotificationManagerCompat
+import dev.josemiguel.intentional.core.AppGroup
+import dev.josemiguel.intentional.core.WindDown
 import dev.josemiguel.launcher.ui.AppOptionsDialog
 import dev.josemiguel.launcher.ui.BlockedScreen
 import dev.josemiguel.launcher.ui.GroupsScreen
@@ -38,12 +40,13 @@ import dev.josemiguel.launcher.ui.LauncherTheme
 import dev.josemiguel.launcher.ui.PauseScreen
 import dev.josemiguel.launcher.ui.ReflectionScreen
 import dev.josemiguel.launcher.ui.SearchScreen
-import dev.josemiguel.launcher.ui.screenPanel
 import dev.josemiguel.launcher.ui.SettingsAppsScreen
 import dev.josemiguel.launcher.ui.SettingsScreen
 import dev.josemiguel.launcher.ui.TrayScreen
 import dev.josemiguel.launcher.ui.Wallpaper
+import dev.josemiguel.launcher.ui.screenPanel
 import java.time.LocalTime
+import kotlinx.datetime.toKotlinLocalTime
 
 sealed interface Screen {
     data object Home : Screen
@@ -514,7 +517,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun windDownActive(): Boolean =
-        windDownEnabled && WindDown.isActive(windDownStart, windDownEnd)
+        windDownEnabled && WindDown.isActive(windDownStart.toKotlinLocalTime(), windDownEnd.toKotlinLocalTime())
 
     private fun refreshDefaultStatus() {
         val roleManager = getSystemService(RoleManager::class.java)

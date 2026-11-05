@@ -5,6 +5,7 @@ import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.os.Process
+import dev.josemiguel.intentional.core.AppGroup
 import java.time.LocalDate
 import java.time.ZoneId
 

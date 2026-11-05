@@ -22,6 +22,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
 import androidx.compose.ui.graphics.toArgb
+import dev.josemiguel.intentional.core.AppGroup
 import dev.josemiguel.launcher.guard.GuardBypass
 import dev.josemiguel.launcher.guard.GuardPolicy
 import dev.josemiguel.launcher.guard.ScreenInfo

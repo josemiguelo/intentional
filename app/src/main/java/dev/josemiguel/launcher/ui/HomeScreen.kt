@@ -30,15 +30,16 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import dev.josemiguel.intentional.core.WindDown
 import dev.josemiguel.launcher.AppEntry
-import dev.josemiguel.launcher.WindDown
-import kotlinx.coroutines.delay
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
+import kotlinx.datetime.toKotlinLocalTime
 
 private val TIME = DateTimeFormatter.ofPattern("HH:mm")
 private val DATE = DateTimeFormatter.ofPattern("EEEE · MMMM d", Locale.ENGLISH)
@@ -93,7 +94,11 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(PanelGap),
     ) {
         val windDown = windDownEnabled &&
-            WindDown.isActive(windDownStart, windDownEnd, now.toLocalTime())
+            WindDown.isActive(
+                windDownStart.toKotlinLocalTime(),
+                windDownEnd.toKotlinLocalTime(),
+                now.toLocalTime().toKotlinLocalTime(),
+            )
 
         Column(Modifier.fillMaxWidth().panel()) {
             Text(

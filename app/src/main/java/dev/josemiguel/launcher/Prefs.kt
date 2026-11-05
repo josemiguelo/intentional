@@ -1,6 +1,23 @@
 package dev.josemiguel.launcher
 
 import android.content.Context
+import dev.josemiguel.intentional.core.AppGroup
+import dev.josemiguel.intentional.core.Budget
+import dev.josemiguel.intentional.core.Friction
+import dev.josemiguel.intentional.core.canChangeLimit
+import dev.josemiguel.intentional.core.daysUntilChangeable
+import dev.josemiguel.intentional.core.groupOf
+import dev.josemiguel.intentional.core.groupOfSite
+import dev.josemiguel.intentional.core.parseGroups
+import dev.josemiguel.intentional.core.siteCovers
+import dev.josemiguel.intentional.core.siteDomain
+import dev.josemiguel.intentional.core.toGroupsJson
+import dev.josemiguel.intentional.core.withApp
+import dev.josemiguel.intentional.core.withGroup
+import dev.josemiguel.intentional.core.withLimit
+import dev.josemiguel.intentional.core.withSite
+import dev.josemiguel.intentional.core.withoutGroup
+import dev.josemiguel.intentional.core.withoutSite
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -15,9 +32,7 @@ class Prefs(context: Context) {
     private val sp = context.getSharedPreferences("launcher", Context.MODE_PRIVATE)
 
     companion object {
-        const val MAX_LIMIT_MINUTES = 60
-        const val MIN_LIMIT_MINUTES = 5
-        const val LIMIT_CHANGE_COOLDOWN_MS = 7L * 86_400_000L
+        const val MAX_LIMIT_MINUTES = Budget.MAX_LIMIT_MINUTES
     }
 
     var favorites: List<String>
@@ -121,40 +136,31 @@ class Prefs(context: Context) {
     }
 
     /**
-     * App groups sharing a daily time budget. An app belongs to at most one
-     * group; apps in no group are unlimited. Budgets are hard-enforced by
-     * GuardService and changeable only once a week.
+     * App groups sharing a daily time budget; the rules live in core's
+     * Groups.kt. Budgets are hard-enforced by GuardService and changeable
+     * only once a week.
      */
     var groups: List<AppGroup>
         get() = parseGroups(sp.getString("groups", "[]")!!)
         set(value) = sp.edit().putString("groups", value.toGroupsJson()).apply()
 
-    fun groupOf(packageName: String): AppGroup? =
-        groups.firstOrNull { packageName in it.packages }
+    fun groupOf(packageName: String): AppGroup? = groups.groupOf(packageName)
 
     fun addGroup(name: String) {
-        if (name.isBlank() || groups.any { it.name.equals(name, ignoreCase = true) }) return
-        groups = groups + AppGroup(name.trim(), emptySet(), MAX_LIMIT_MINUTES, 0L)
+        groups = groups.withGroup(name)
     }
 
     fun deleteGroup(name: String) {
-        groups = groups.filterNot { it.name == name }
+        groups = groups.withoutGroup(name)
     }
 
     /** Moves an app into [groupName], or out of every group if null. */
     fun assignToGroup(packageName: String, groupName: String?) {
-        groups = groups.map { g ->
-            val without = g.packages - packageName
-            when {
-                g.name == groupName -> g.copy(packages = without + packageName)
-                else -> g.copy(packages = without)
-            }
-        }
+        groups = groups.withApp(packageName, groupName)
     }
 
     /** The group whose sites cover [host] (a site or any subdomain of it). */
-    fun groupOfSite(host: String): AppGroup? =
-        groups.firstOrNull { g -> g.sites.any { host == it || host.endsWith(".$it") } }
+    fun groupOfSite(host: String): AppGroup? = groups.groupOfSite(host)
 
     /**
      * Moves a site (typed as a domain or pasted as a URL) into [groupName], or
@@ -162,37 +168,23 @@ class Prefs(context: Context) {
      */
     fun assignSiteToGroup(site: String, groupName: String?): Boolean {
         val host = SiteTracker.hostOf(site) ?: return false
-        // "m.facebook.com" means the site, not just its mobile host.
-        val domain = host.removePrefix("m.").takeIf { '.' in it } ?: host
-        groups = groups.map { g ->
-            val without = g.sites - domain
-            if (g.name == groupName) g.copy(sites = without + domain) else g.copy(sites = without)
-        }
+        groups = groups.withSite(siteDomain(host), groupName)
         return true
     }
 
     fun removeSite(groupName: String, domain: String) {
-        groups = groups.map { g -> if (g.name == groupName) g.copy(sites = g.sites - domain) else g }
+        groups = groups.withoutSite(groupName, domain)
     }
 
     fun canChangeGroupLimit(group: AppGroup): Boolean =
-        System.currentTimeMillis() - group.limitChangedAt >= LIMIT_CHANGE_COOLDOWN_MS
+        group.canChangeLimit(System.currentTimeMillis())
 
-    fun daysUntilChangeable(group: AppGroup): Int {
-        val remaining = LIMIT_CHANGE_COOLDOWN_MS - (System.currentTimeMillis() - group.limitChangedAt)
-        return ((remaining + 86_400_000L - 1) / 86_400_000L).toInt().coerceAtLeast(0)
-    }
+    fun daysUntilChangeable(group: AppGroup): Int =
+        group.daysUntilChangeable(System.currentTimeMillis())
 
     /** Sets a group's budget, honoring the once-a-week cooldown. */
     fun setGroupLimit(name: String, minutes: Int) {
-        groups = groups.map { g ->
-            if (g.name == name && canChangeGroupLimit(g)) {
-                g.copy(
-                    limitMinutes = minutes.coerceIn(MIN_LIMIT_MINUTES, MAX_LIMIT_MINUTES),
-                    limitChangedAt = System.currentTimeMillis(),
-                )
-            } else g
-        }
+        groups = groups.withLimit(name, minutes, System.currentTimeMillis())
     }
 
     private fun todaySuffix() = LocalDate.now().toString()
@@ -218,7 +210,7 @@ class Prefs(context: Context) {
         val prefix = "site-${todaySuffix()}-"
         return sp.all.entries.sumOf { (key, value) ->
             val host = key.removePrefix(prefix)
-            val matches = key.startsWith(prefix) && (host == domain || host.endsWith(".$domain"))
+            val matches = key.startsWith(prefix) && siteCovers(domain, host)
             if (matches) value as Long else 0L
         }
     }

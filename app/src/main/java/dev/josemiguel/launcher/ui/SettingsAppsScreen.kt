@@ -23,8 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.josemiguel.intentional.core.Friction
 import dev.josemiguel.launcher.AppEntry
-import dev.josemiguel.launcher.Friction
 
 private enum class AppsTab(val label: String) {
     ALL("all"), CONSIDERED("considered"), BATCHED("batched"), GROUPS("groups")
