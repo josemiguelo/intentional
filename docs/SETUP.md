@@ -114,9 +114,16 @@ locked; removing it needs the adb escape below.
 
 Groups can hold websites next to apps (settings → groups & time limits →
 **+ add site**). Their time is measured by the guard from Brave/Chrome's
-address bar; once a group is over budget, the guard bounces off its sites and a
+address bar; once a group is over budget, the guard covers its sites and a
 local VPN refuses their DNS lookups, so they don't load in any app or browser
 for the rest of the day.
+
+When the budget runs out mid-visit, a "that's your N minutes" screen covers the
+browser while the guard moves the tab to the new-tab page; it then lifts and
+the browser stays usable. If the move fails (the address bar was scrolled
+away, or Android 10), the screen offers **new tab** / **home**; after leaving
+it, the next return to the browser gets 8 seconds to switch or close the tab by
+hand before the site is covered again.
 
 The VPN only carries DNS: it routes nothing but its own resolver address
 (`10.111.0.53`), relays allowed lookups to the current network's DNS server,

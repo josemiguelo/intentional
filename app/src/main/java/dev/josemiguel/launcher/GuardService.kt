@@ -89,13 +89,18 @@ class GuardService : AccessibilityService() {
     /** Covers the browser while an over-budget site's tab is moved; see [blockSite]. */
     private val siteBlock by lazy {
         SiteBlockOverlay(this, onNewTab = ::retryRedirect, onHome = {
-            endSiteBlock()
+            endSiteBlock(grace = true)
             performGlobalAction(GLOBAL_ACTION_HOME)
         })
     }
 
     /** The over-budget host [siteBlock] is up for, or null when it's down. */
     private var blockedHost: String? = null
+
+    /** A host left behind the overlay with its tab unmoved, and when; see [inGrace]. */
+    private var graceHost: String? = null
+    private var graceArmedAt = 0L
+    private var graceStartedAt = 0L
 
     /** Screen off ends any website time, whatever the browser does. */
     private val screenOff = object : BroadcastReceiver() {
@@ -197,7 +202,7 @@ class GuardService : AccessibilityService() {
             if (rootInActiveWindow?.packageName?.toString() !in SiteTracker.BROWSERS) {
                 siteTracker.stop()
                 // Left by gesture or recents; the overlay would cover whatever's next.
-                endSiteBlock()
+                endSiteBlock(grace = true)
             }
         }
     }
@@ -210,7 +215,7 @@ class GuardService : AccessibilityService() {
      */
     private fun enforceSiteBudget() {
         val host = siteTracker.current ?: return
-        if (host == blockedHost) return
+        if (host == blockedHost || inGrace(host)) return
         val now = SystemClock.elapsedRealtime()
         if (host == siteChecked && now - siteCheckedAt < POLL_MS) return
         siteChecked = host
@@ -262,16 +267,47 @@ class GuardService : AccessibilityService() {
     /** The overlay never outstays this, whatever the browser does. */
     private val siteBlockTimeout = Runnable {
         if (blockedHost == null) return@Runnable
-        endSiteBlock()
+        endSiteBlock(grace = true)
         performGlobalAction(GLOBAL_ACTION_HOME)
     }
 
-    private fun endSiteBlock() {
-        blockedHost ?: return
+    /** Lifts the overlay; [grace] when the tab may still be on the site (see [inGrace]). */
+    private fun endSiteBlock(grace: Boolean = false) {
+        val host = blockedHost ?: return
         blockedHost = null
         handler.removeCallbacks(redirectMissed)
         handler.removeCallbacks(siteBlockTimeout)
         siteBlock.hide()
+        if (grace) {
+            graceHost = host
+            graceArmedAt = SystemClock.elapsedRealtime()
+            graceStartedAt = 0L
+        }
+    }
+
+    /**
+     * The fallback when the tab couldn't be moved (the bar scrolled away, API
+     * 29): the first return to [host] within [GRACE_ARM_MS] of leaving the
+     * overlay holds enforcement for [GRACE_MS], long enough to switch or close
+     * the tab by hand. The page can't load anything new meanwhile (the VPN
+     * refuses it), but what's cached stays visible. The redirect is retried as
+     * the window opens, since a resumed browser usually shows its bar again.
+     */
+    private fun inGrace(host: String): Boolean {
+        if (host != graceHost) return false
+        val now = SystemClock.elapsedRealtime()
+        if (graceStartedAt == 0L) {
+            if (now - graceArmedAt > GRACE_ARM_MS) {
+                graceHost = null
+                return false
+            }
+            graceStartedAt = now
+            val redirected = rootInActiveWindow?.let(siteTracker::redirectTab) == true
+            Log.i(TAG, "grace: $host, redirect ${if (redirected) "sent" else "failed"}")
+        }
+        if (now - graceStartedAt < GRACE_MS) return true
+        graceHost = null
+        return false
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
@@ -501,5 +537,7 @@ class GuardService : AccessibilityService() {
         const val SITE_READ_MS = 1_000L
         const val REDIRECT_CONFIRM_MS = 3_000L
         const val SITE_BLOCK_MAX_MS = 30_000L
+        const val GRACE_ARM_MS = 120_000L
+        const val GRACE_MS = 8_000L
     }
 }

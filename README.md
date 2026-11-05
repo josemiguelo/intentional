@@ -20,7 +20,7 @@ minutes.
 - **Group budgets across apps and websites** — a group (say "facebook") holds
   apps *and* sites and shares one daily budget between them: the Facebook app's
   time and facebook.com's time in the browser add up. Over budget, the app is
-  closed, the site bounces home, and a DNS-only VPN refuses the site's lookups
+  closed, the site's tab is covered and moved to a new tab, and a DNS-only VPN refuses the site's lookups
   in every app and browser until tomorrow.
 
 Long-press any app (on home or in search) to add/remove it from home or mark
