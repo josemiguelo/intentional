@@ -78,7 +78,13 @@ class Firebase(private val config: SyncConfig, private val http: HttpClient) {
         if (idToken == null || nowMs > expiresAt - 60_000) {
             if (refreshToken == null) signIn(nowMs) else refresh(nowMs)
         }
-        return request(idToken!!)
+        return try {
+            request(idToken!!)
+        } catch (e: Exception) {
+            // The HTTP client's errors quote the URL, and the database's URL
+            // carries the ID token: never let it reach a log.
+            throw SyncException(scrubbed(e.message ?: e.toString()))
+        }
     }
 
     private suspend fun signIn(nowMs: Long) {
@@ -122,3 +128,8 @@ class Firebase(private val config: SyncConfig, private val http: HttpClient) {
 }
 
 class SyncException(message: String) : Exception(message)
+
+/** [text] with any auth token in it (a URL's `auth=` parameter, a bare JWT) replaced. */
+fun scrubbed(text: String): String = text
+    .replace(Regex("auth=[^&'\"\\s)]+"), "auth=…")
+    .replace(Regex("eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+"), "…")

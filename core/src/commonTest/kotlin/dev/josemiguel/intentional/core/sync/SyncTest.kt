@@ -49,3 +49,16 @@ class LimitsTest {
         assertEquals(groups[1], limited[1])
     }
 }
+
+class ScrubTest {
+
+    @Test
+    fun tokensNeverReachTheMessage() {
+        val jwt = "eyJhbGciOiJSUzI1NiJ9.eyJ1c2VyX2lkIjoidTEifQ.c2lnbmF0dXJl"
+        val curl = "Connection failed for request: CurlRequestData(url='https://offline.invalid/users/u1/groups.json?auth=$jwt', method='GET')"
+        val clean = scrubbed(curl)
+        assertEquals("Connection failed for request: CurlRequestData(url='https://offline.invalid/users/u1/groups.json?auth=…', method='GET')", clean)
+        assertEquals("token … expired", scrubbed("token $jwt expired"))
+        assertEquals("Unable to resolve host \"x.firebaseio.com\"", scrubbed("Unable to resolve host \"x.firebaseio.com\""))
+    }
+}
