@@ -183,8 +183,13 @@ done
 
 ## Android TV / Google TV
 
-The same APK runs on a TV (tested target: Xiaomi TV Stick 4K 2nd gen, Google
-TV). Everything is set up over adb, since TV settings hide most of these pages:
+On a TV Intentional isn't the launcher: the stock one stays (inputs, profiles,
+its settings), and the guard does the work. It enforces group budgets on
+whatever is in front, stops an over-budget app's playback, and puts a
+considered app's pause in front of it however it was opened. The app itself
+opens on settings, from the TV's apps row. Tested target: Xiaomi TV Stick 4K
+2nd gen (Google TV). Everything is set up over adb, since TV settings hide most
+of these pages:
 
 1. **Network debugging** on the TV: Settings → System → About → press *Android
    TV OS build* 7 times, then Developer options → **Network debugging** on.
@@ -193,16 +198,15 @@ TV). Everything is set up over adb, since TV settings hide most of these pages:
    the appops (`GET_USAGE_STATS`, `ACCESS_RESTRICTED_SETTINGS`), the battery
    whitelist, and the guard via `enabled_accessibility_services` (section 4's
    adb path).
-3. **Home** — Google TV has no default-home setting and its Home button always
-   opens the stock launcher. The guard sends that straight back to Intentional,
-   so Home works once the guard is on; the stock screen may flash. Nothing is
-   disabled, so removing the guard restores the stock home.
 
-On the remote, home shows **→ search** and **→ settings** rows (there's no
-swipe-up or clock long-press), and **holding select** on an app opens its
-options, as long-press does on a phone. TV apps are listed from their TV
-entry: YouTube on a TV is `com.google.android.youtube.tv`, a different package
-from the phone's, so add it to the youtube group separately.
+On the remote, **holding select** on an app opens its options, as long-press
+does on a phone. TV apps are listed from their TV entry: YouTube on a TV is
+`com.google.android.youtube.tv`, a different package from the phone's, so add
+it to the youtube group separately.
+
+The guard's pause works on the phone too: a considered app opened from a
+notification or recents gets it, not only one opened from home. After choosing
+**open**, coming back within 5 minutes of leaving doesn't pause again.
 
 ## After every reinstall
 

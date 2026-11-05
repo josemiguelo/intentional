@@ -44,6 +44,7 @@ fun SettingsScreen(
     longPauseSeconds: Int,
     dropTimes: List<LocalTime>,
     isDefaultLauncher: Boolean,
+    isTv: Boolean,
     usageAccessGranted: Boolean,
     listenerEnabled: Boolean,
     guardEnabled: Boolean,
@@ -117,12 +118,15 @@ fun SettingsScreen(
         )
 
         SectionHeader("permissions")
-        SettingRow(
-            if (isDefaultLauncher) "default launcher · yes"
-            else "default launcher · set →",
-            muted = isDefaultLauncher,
-            onClick = onRequestDefault,
-        )
+        // A TV keeps its own launcher; the guard does the work there.
+        if (!isTv) {
+            SettingRow(
+                if (isDefaultLauncher) "default launcher · yes"
+                else "default launcher · set →",
+                muted = isDefaultLauncher,
+                onClick = onRequestDefault,
+            )
+        }
         SettingRow(
             if (usageAccessGranted) "usage access · granted"
             else "usage access · grant →",

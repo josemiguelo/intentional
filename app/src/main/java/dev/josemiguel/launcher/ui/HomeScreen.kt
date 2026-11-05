@@ -59,7 +59,6 @@ fun HomeScreen(
     heldReadyCount: Int,
     needsListenerGrant: Boolean,
     isDefaultLauncher: Boolean,
-    isTv: Boolean,
     onRequestDefault: () -> Unit,
     onOpenTray: () -> Unit,
     onEnableFiltering: () -> Unit,
@@ -117,22 +116,7 @@ fun HomeScreen(
                     style = LauncherTheme.body.copy(color = LauncherTheme.faint),
                 )
             }
-            if (isTv) {
-                // A remote can't swipe up or long-press the clock.
-                Text(
-                    "→ search",
-                    style = LauncherTheme.body,
-                    modifier = Modifier
-                        .clickable(onClick = onOpenSearch)
-                        .padding(top = 16.dp),
-                )
-                Text(
-                    "→ settings",
-                    style = LauncherTheme.body,
-                    modifier = Modifier.clickable(onClick = onOpenSettings),
-                )
-            } else if (!isDefaultLauncher) {
-                // A TV has no default-home setting; the guard takes Home over instead.
+            if (!isDefaultLauncher) {
                 Text(
                     "→ set as default launcher",
                     style = LauncherTheme.body,
@@ -151,8 +135,7 @@ fun HomeScreen(
         Column(Modifier.fillMaxWidth().panel()) {
             if (favorites.isEmpty()) {
                 Text(
-                    if (isTv) "search, then hold select on an app to add it here"
-                    else "swipe up, then long-press an app to add it here",
+                    "swipe up, then long-press an app to add it here",
                     style = LauncherTheme.caption,
                 )
             }
@@ -264,7 +247,6 @@ private fun FavoritesList(
                             },
                         )
                     }
-                    .onSelectLongPress { onLongPressApp(app) }
                     .clickable { onOpenApp(app) }
                     .padding(vertical = 10.dp),
             )

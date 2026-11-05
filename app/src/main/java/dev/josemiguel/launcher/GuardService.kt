@@ -49,7 +49,7 @@ import dev.josemiguel.launcher.ui.Palette
  *    on-screen time per site toward group budgets; a site whose group is over
  *    budget is covered and its tab moved to the new-tab page.
  *
- * 4. On a TV, Home opening the stock launcher comes back here instead.
+ * 4. Considered apps reached any way but the launcher get its pause screen.
  *
  * Hard-won platform notes (Samsung, Android 13+):
  * - Sideloaded apps need the ACCESS_RESTRICTED_SETTINGS appop allowed or the
@@ -74,7 +74,8 @@ class GuardService : AccessibilityService() {
 
     private var lastPipCheck = 0L
 
-    private val isTv by lazy { Tv.isTv(this) }
+    /** The app last seen coming to the front, for [PauseGate]'s sessions. */
+    private var foreground: String? = null
 
     /** The overlay hiding a blocked screen while HOME animates, or null. */
     private var shield: View? = null
@@ -152,7 +153,7 @@ class GuardService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        Log.i(TAG, "connected, policy=${policy.javaClass.simpleName}, tv=$isTv")
+        Log.i(TAG, "connected, policy=${policy.javaClass.simpleName}")
         registerMediaSessionListener()
         registerReceiver(screenOff, IntentFilter(Intent.ACTION_SCREEN_OFF))
         screenOffRegistered = true
@@ -335,8 +336,7 @@ class GuardService : AccessibilityService() {
         if (type != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
 
-        if (isTv && pkg in Tv.STOCK_LAUNCHERS) return takeOverTvHome(pkg)
-
+        pauseIfConsidered(pkg)
         updateLimitMonitoring(pkg)
 
         // Strict-mode blocking is scoped to system settings screens.
@@ -367,15 +367,22 @@ class GuardService : AccessibilityService() {
     }
 
     /**
-     * The TV's Home button opens the stock launcher, ignoring the default home
-     * app (Google TV offers no way to change it), so it's sent straight back
-     * here — the same takeover third-party TV launchers do. Nothing is
-     * disabled; the stock launcher only flashes.
+     * Brings up the pause screen when a considered app comes to the front
+     * without one — opened from a notification, recents, another launcher, or
+     * on a TV, where Intentional isn't the launcher at all. [PauseGate] keeps
+     * an approved app from pausing again until it's been away a while.
      */
-    private fun takeOverTvHome(pkg: String) {
-        Log.i(TAG, "tv home: $pkg")
+    private fun pauseIfConsidered(pkg: String) {
+        if (pkg == foreground) return
+        foreground?.let(PauseGate::left)
+        foreground = pkg
+        if (pkg == packageName || pkg !in Prefs(this).considered) return
+        if (!PauseGate.shouldPrompt(pkg)) return
+        Log.i(TAG, "pause: $pkg")
         startActivity(
-            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                .putExtra(MainActivity.EXTRA_PAUSE, pkg),
         )
     }
 

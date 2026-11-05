@@ -67,6 +67,11 @@ private val Screen.isFramed: Boolean
 
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        /** A considered app's package: the guard caught it opening, so show its pause. */
+        const val EXTRA_PAUSE = "dev.josemiguel.launcher.PAUSE"
+    }
+
     private lateinit var prefs: Prefs
 
     private var screen by mutableStateOf<Screen>(Screen.Home)
@@ -167,10 +172,10 @@ class MainActivity : ComponentActivity() {
                         // the system tries to background the launcher; on Home it's a
                         // deliberate no-op.
                         BackHandler(enabled = true) {
-                            screen = when (screen) {
-                                Screen.Home -> Screen.Home
-                                Screen.SettingsApps, Screen.Groups -> Screen.Settings
-                                else -> Screen.Home
+                            when (screen) {
+                                rootScreen -> if (isTv) moveTaskToBack(true)
+                                Screen.SettingsApps, Screen.Groups -> screen = Screen.Settings
+                                else -> screen = rootScreen
                             }
                         }
 
@@ -187,7 +192,6 @@ class MainActivity : ComponentActivity() {
                                     heldReadyCount = heldReady.size,
                                     needsListenerGrant = batched.isNotEmpty() && !listenerEnabled,
                                     isDefaultLauncher = isDefaultLauncher,
-                                    isTv = isTv,
                                     onRequestDefault = ::requestDefaultLauncher,
                                     onOpenTray = {
                                         heldReady = HeldNotifications.ready(this@MainActivity)
@@ -244,6 +248,7 @@ class MainActivity : ComponentActivity() {
                                     longPauseSeconds = longPauseSeconds,
                                     dropTimes = dropTimes,
                                     isDefaultLauncher = isDefaultLauncher,
+                                    isTv = isTv,
                                     usageAccessGranted = usageAccessGranted,
                                     listenerEnabled = listenerEnabled,
                                     guardEnabled = guardEnabled,
@@ -378,7 +383,7 @@ class MainActivity : ComponentActivity() {
                                     BlockedScreen(
                                         groupName = group?.name ?: "",
                                         limitMinutes = group?.limitMinutes ?: 0,
-                                        onClose = { screen = Screen.Home },
+                                        onClose = ::leave,
                                     )
                                 }
 
@@ -394,7 +399,7 @@ class MainActivity : ComponentActivity() {
                                     onClose = {
                                         prefs.incrementPausedClosed()
                                         countsToday = prefs.countsToday()
-                                        screen = Screen.Home
+                                        leave()
                                     },
                                 )
                             }
@@ -479,7 +484,7 @@ class MainActivity : ComponentActivity() {
         exactAlarmsAllowed = DropScheduler.exactAlarmsAllowed(this)
         DropScheduler.scheduleNext(this)
         syncSiteVpn(askConsent = false)
-        screen = Screen.Home
+        screen = rootScreen
         refreshDefaultStatus()
         registerReceiver(packageReceiver, IntentFilter().apply {
             addAction(Intent.ACTION_PACKAGE_ADDED)
@@ -514,8 +519,30 @@ class MainActivity : ComponentActivity() {
     /** Pressing home while already in the launcher returns to the home screen. */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        screen = Screen.Home
+        setIntent(intent)
+        screen = rootScreen
         optionsFor = null
+    }
+
+    /** The guard's pause request ([EXTRA_PAUSE]), taken last so onStart's reset can't undo it. */
+    override fun onResume() {
+        super.onResume()
+        val pkg = intent.getStringExtra(EXTRA_PAUSE) ?: return
+        intent.removeExtra(EXTRA_PAUSE)
+        val app = apps.find { it.packageName == pkg } ?: return
+        screen = Screen.Pause(app)
+    }
+
+    /** The screen the app rests on: home on a phone, settings on a TV, where it isn't the launcher. */
+    private val rootScreen: Screen get() = if (isTv) Screen.Settings else Screen.Home
+
+    /**
+     * Away from a paused or blocked app. On a phone that's this home screen;
+     * on a TV, the stock launcher, since the app is still behind this one.
+     */
+    private fun leave() {
+        screen = rootScreen
+        if (isTv) startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME))
     }
 
     private fun windDownActive(): Boolean =
@@ -593,7 +620,9 @@ class MainActivity : ComponentActivity() {
     private fun open(app: AppEntry) {
         prefs.incrementIntentional()
         countsToday = prefs.countsToday()
-        screen = Screen.Home
+        // It passed the pause (or isn't considered): the guard mustn't pause it again.
+        PauseGate.approve(app.packageName)
+        screen = rootScreen
         AppRepository.launch(this, app)
     }
 }
