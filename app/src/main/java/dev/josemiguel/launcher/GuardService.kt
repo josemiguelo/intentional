@@ -302,12 +302,20 @@ class GuardService : AccessibilityService() {
                 return false
             }
             graceStartedAt = now
+            // An idle page fires no events: re-check the moment the window closes.
+            handler.removeCallbacks(graceOver)
+            handler.postDelayed(graceOver, GRACE_MS + 100)
             val redirected = rootInActiveWindow?.let(siteTracker::redirectTab) == true
             Log.i(TAG, "grace: $host, redirect ${if (redirected) "sent" else "failed"}")
         }
         if (now - graceStartedAt < GRACE_MS) return true
         graceHost = null
         return false
+    }
+
+    private val graceOver = Runnable {
+        siteChecked = null
+        enforceSiteBudget()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
@@ -516,6 +524,7 @@ class GuardService : AccessibilityService() {
         handler.removeCallbacks(limitPoll)
         handler.removeCallbacks(hideShield)
         hideShield.run()
+        handler.removeCallbacks(graceOver)
         endSiteBlock()
         siteTracker.stop()
         if (screenOffRegistered) unregisterReceiver(screenOff)

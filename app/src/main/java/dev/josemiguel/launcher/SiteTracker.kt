@@ -71,14 +71,22 @@ class SiteTracker(
         val target = NEW_TAB[pkg] ?: return false
         val bar = root.findAccessibilityNodeInfosByViewId("$pkg:id/url_bar").firstOrNull()
             ?: return false
-        if (!bar.isFocused &&
-            !bar.performAction(AccessibilityNodeInfo.ACTION_FOCUS) &&
+        if (bar.isFocused) return enter(bar, target)
+        if (!bar.performAction(AccessibilityNodeInfo.ACTION_FOCUS) &&
             !bar.performAction(AccessibilityNodeInfo.ACTION_CLICK)
         ) return false
-        // Focusing swaps the bar into edit mode; act on its current state.
-        bar.refresh()
+        // The bar switches into edit mode after the focus returns, wiping
+        // anything typed before it (verified on Brave): type once it settles.
+        handler.postDelayed({
+            bar.refresh()
+            if (!enter(bar, target)) Log.w(TAG, "redirect refused after focus")
+        }, EDIT_MODE_MS)
+        return true
+    }
+
+    private fun enter(bar: AccessibilityNodeInfo, address: String): Boolean {
         val text = Bundle().apply {
-            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, target)
+            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, address)
         }
         if (!bar.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, text)) return false
         return bar.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
@@ -109,6 +117,7 @@ class SiteTracker(
     companion object {
         private const val TAG = "SiteTracker"
         private const val FLUSH_MS = 30_000L
+        private const val EDIT_MODE_MS = 300L
 
         /** Browsers whose address bar is the Chromium `url_bar` view. */
         val BROWSERS = setOf("com.android.chrome", "com.brave.browser")
