@@ -46,7 +46,7 @@ import dev.josemiguel.launcher.ui.Palette
  *
  * 3. Website time: the browser's address bar feeds [SiteTracker], which counts
  *    on-screen time per site toward group budgets; a site whose group is over
- *    budget bounces home like an over-limit app.
+ *    budget is covered and its tab moved to the new-tab page.
  *
  * Hard-won platform notes (Samsung, Android 13+):
  * - Sideloaded apps need the ACCESS_RESTRICTED_SETTINGS appop allowed or the
@@ -86,9 +86,27 @@ class GuardService : AccessibilityService() {
     private var siteChecked: String? = null
     private var siteCheckedAt = 0L
 
+    /** Covers the browser while an over-budget site's tab is moved; see [blockSite]. */
+    private val siteBlock by lazy {
+        SiteBlockOverlay(this, onNewTab = ::retryRedirect, onHome = {
+            endSiteBlock()
+            performGlobalAction(GLOBAL_ACTION_HOME)
+        })
+    }
+
+    /** The over-budget host [siteBlock] is up for, or null when it's down. */
+    private var blockedHost: String? = null
+
     /** Screen off ends any website time, whatever the browser does. */
     private val screenOff = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) = siteTracker.stop()
+        override fun onReceive(context: Context, intent: Intent) {
+            siteTracker.stop()
+            // The tab is still on the site: leave home, so unlocking can't show it.
+            if (blockedHost != null) {
+                endSiteBlock()
+                performGlobalAction(GLOBAL_ACTION_HOME)
+            }
+        }
     }
 
     // Unbinding can come before onServiceConnected (a quick off/on toggle).
@@ -171,21 +189,28 @@ class GuardService : AccessibilityService() {
             if (root.packageName?.toString() in SiteTracker.BROWSERS) {
                 if (Prefs(this).strictMode && isBrowserSecureDnsPage(root)) return block("browser secure DNS")
                 siteTracker.onBrowserWindow(root)
+                // The tab left the blocked site: the redirect landed.
+                if (blockedHost != null && siteTracker.current != blockedHost) endSiteBlock()
                 enforceSiteBudget()
             }
         } else if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            if (rootInActiveWindow?.packageName?.toString() !in SiteTracker.BROWSERS) siteTracker.stop()
+            if (rootInActiveWindow?.packageName?.toString() !in SiteTracker.BROWSERS) {
+                siteTracker.stop()
+                // Left by gesture or recents; the overlay would cover whatever's next.
+                endSiteBlock()
+            }
         }
     }
 
     /**
-     * Bounces home off a site whose group is over budget. Checked when the site
-     * changes, every [POLL_MS] while the page fires events, and on each
+     * Blocks a site whose group is over budget (see [blockSite]). Checked when
+     * the site changes, every [POLL_MS] while the page fires events, and on each
      * SiteTracker save (an idle page fires none) — the budget query reads the
      * day's usage events, too costly for every address-bar read.
      */
     private fun enforceSiteBudget() {
         val host = siteTracker.current ?: return
+        if (host == blockedHost) return
         val now = SystemClock.elapsedRealtime()
         if (host == siteChecked && now - siteCheckedAt < POLL_MS) return
         siteChecked = host
@@ -193,18 +218,60 @@ class GuardService : AccessibilityService() {
 
         val group = Prefs(this).groupOfSite(host) ?: return
         if (UsageStatsRepository.groupUsedMinutes(this, group) < group.limitMinutes) return
+        blockSite(host, group)
+    }
+
+    /**
+     * Covers the browser and moves the tab to the new-tab page. Going home
+     * alone left the site as the tab the browser reopens on, so every reopen
+     * bounced straight back out and the browser was locked for the day. Once
+     * the bar shows another page the overlay lifts and the browser is usable;
+     * if the move doesn't land within [REDIRECT_CONFIRM_MS], the overlay offers
+     * **new tab** / **home**. The clock keeps running behind the overlay, but
+     * only for seconds, on a group already over budget.
+     */
+    private fun blockSite(host: String, group: AppGroup) {
         Log.i(TAG, "site budget used: $host")
         Toast.makeText(this, "$host · ${group.name.lowercase()} budget used today", Toast.LENGTH_SHORT).show()
-        // Move the tab off the site first, or reopening the browser lands on it
-        // and bounces straight back out, locking the browser for the day.
-        val redirected = rootInActiveWindow?.let(siteTracker::redirectTab) == true
-        Log.i(TAG, "redirect ${if (redirected) "sent" else "failed"}: $host")
-        siteTracker.stop()
         SiteBlockVpnService.refreshSoon()
-        // Reopening the browser on the same tab must re-check at once.
+        // Coming back to the site after the overlay must re-check at once.
         siteChecked = null
-        showShield()
+        blockedHost = host
+        val redirected = redirect()
+        siteBlock.show(group.name, group.limitMinutes, withChoices = !redirected)
+        handler.removeCallbacks(siteBlockTimeout)
+        handler.postDelayed(siteBlockTimeout, SITE_BLOCK_MAX_MS)
+    }
+
+    /** Sends the tab to the new-tab page, offering the choices if it doesn't land in time. */
+    private fun redirect(): Boolean {
+        val redirected = rootInActiveWindow?.let(siteTracker::redirectTab) == true
+        Log.i(TAG, "redirect ${if (redirected) "sent" else "failed"}: $blockedHost")
+        handler.removeCallbacks(redirectMissed)
+        if (redirected) handler.postDelayed(redirectMissed, REDIRECT_CONFIRM_MS)
+        return redirected
+    }
+
+    private fun retryRedirect() {
+        if (redirect()) siteBlock.hideChoices()
+        else Toast.makeText(this, "couldn't open a new tab", Toast.LENGTH_SHORT).show()
+    }
+
+    private val redirectMissed = Runnable { if (blockedHost != null) siteBlock.showChoices() }
+
+    /** The overlay never outstays this, whatever the browser does. */
+    private val siteBlockTimeout = Runnable {
+        if (blockedHost == null) return@Runnable
+        endSiteBlock()
         performGlobalAction(GLOBAL_ACTION_HOME)
+    }
+
+    private fun endSiteBlock() {
+        blockedHost ?: return
+        blockedHost = null
+        handler.removeCallbacks(redirectMissed)
+        handler.removeCallbacks(siteBlockTimeout)
+        siteBlock.hide()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
@@ -413,6 +480,7 @@ class GuardService : AccessibilityService() {
         handler.removeCallbacks(limitPoll)
         handler.removeCallbacks(hideShield)
         hideShield.run()
+        endSiteBlock()
         siteTracker.stop()
         if (screenOffRegistered) unregisterReceiver(screenOff)
         screenOffRegistered = false
@@ -431,5 +499,7 @@ class GuardService : AccessibilityService() {
         const val MEDIA_SETTLE_MS = 700L
         const val SHIELD_MS = 1_200L
         const val SITE_READ_MS = 1_000L
+        const val REDIRECT_CONFIRM_MS = 3_000L
+        const val SITE_BLOCK_MAX_MS = 30_000L
     }
 }
