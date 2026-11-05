@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "android-launcher"
-include(":app", ":core")
+include(":app", ":core", ":desktop")

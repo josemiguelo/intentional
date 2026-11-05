@@ -26,6 +26,16 @@ minutes.
 Long-press any app (on home or in search) to add/remove it from home or mark
 it as considered.
 
+## Desktop and TV
+
+The same budgets reach other screens. On **Android TV / Google TV** the app
+runs beside the stock launcher: the guard enforces budgets and puts a
+considered app's pause in front of it however it's opened (setup in
+[docs/SETUP.md](docs/SETUP.md)). On **Omarchy / Hyprland** a Kotlin/Native
+daemon and a Brave extension count and enforce app and site time
+([docs/DESKTOP.md](docs/DESKTOP.md)). The platform-free rules are shared in
+`core/`.
+
 ## Build & install
 
 ```sh

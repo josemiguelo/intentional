@@ -1,0 +1,14 @@
+# The desktop guard, for the length of the graphical session (uwsm on
+# Omarchy), which also hands it HYPRLAND_INSTANCE_SIGNATURE.
+[Unit]
+Description=Intentional desktop guard
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/intentional
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

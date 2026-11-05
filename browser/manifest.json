@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Intentional",
+  "version": "0.1",
+  "description": "Reports the active tab's site to Intentional's desktop guard, and keeps over-budget sites out until tomorrow.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuwZzp70oLpqWjwCAvhBtipiJc1l4H9TX1FFgONHdosZXyzCGvM0mgMYi4Qa1DhNE6BnvPjWOZlvN+pcQUe7Nj6trpipmjjM8CoBe/bre36MNeYnWz8XceiNEUCDpz6uyHnhuN0I65ybqA1B9lAwxUSgCrEZmOwpRioYg2/3GZirXw3yQ2TIgBVomiBZi5+W5TAhl0YQWQo1xDlSkPpxUH3yhh48S9D97dWVYVBdt+nFaDkqXxzas6B+yvvk6421TPf8iExN/rKV1olPz84UfRGHCsVd/zKERkaJOleJaj4kGdVQJqjXFJ1t8ihRprh88hltDusvW1FPse42Is/pwcQIDAQAB",
+  "permissions": ["nativeMessaging", "tabs", "declarativeNetRequest"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "web_accessible_resources": [{ "resources": ["blocked.html"], "matches": ["<all_urls>"] }]
+}
