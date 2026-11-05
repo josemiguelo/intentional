@@ -25,6 +25,10 @@ which takes focus after a couple of idle minutes and so ends a tab's or app's
 time by itself. With Omarchy's "stay awake" on there's no screensaver, so time
 counts until something else takes focus.
 
+Each pause's decision counts, as on the phone: opened, or paused and closed.
+The counts sync with the day's time, so `intentional status` and the phone's
+home screen show every device's.
+
 The day's time is in `~/.local/state/intentional/usage/<date>.json`, saved
 every 10 seconds. `intentional status` prints each group's use.
 

@@ -203,6 +203,9 @@ class Daemon {
     private fun onDecision(app: String, open: Boolean) {
         val waiting = pending.remove(app) ?: return
         log("pause: ${app.removePrefix("hypr:")} · ${if (open) "open" else "close"}")
+        // The day's decisions, as the phone counts them; they sync with the day's time.
+        usage = if (open) usage.copy(opened = usage.opened + 1) else usage.copy(closed = usage.closed + 1)
+        save()
         if (open) {
             sessions[app] = monotonicMs()
             waiting.windows.forEach { (address, workspace) -> Hyprland.restore(address, workspace) }

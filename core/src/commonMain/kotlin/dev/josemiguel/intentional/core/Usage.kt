@@ -12,19 +12,25 @@ import kotlinx.serialization.json.Json
 data class DayUsage(
     val apps: Map<String, Long> = emptyMap(),
     val sites: Map<String, Long> = emptyMap(),
+    /** Apps opened through their pause (or, on the phone, intentionally from home). */
+    val opened: Int = 0,
+    /** Pauses that ended in close: the moments the app is built for. */
+    val closed: Int = 0,
 ) {
     fun plusApp(app: String, ms: Long) = copy(apps = apps + (app to (apps[app] ?: 0L) + ms))
 
     fun plusSite(host: String, ms: Long) = copy(sites = sites + (host to (sites[host] ?: 0L) + ms))
 
-    /** Two devices' days, added: what a group spends across them. */
+    /** Two devices' days, added: what a group spends across them, and the day's decisions. */
     operator fun plus(other: DayUsage) = DayUsage(
         apps = (apps.keys + other.apps.keys).associateWith { (apps[it] ?: 0L) + (other.apps[it] ?: 0L) },
         sites = (sites.keys + other.sites.keys).associateWith { (sites[it] ?: 0L) + (other.sites[it] ?: 0L) },
+        opened = opened + other.opened,
+        closed = closed + other.closed,
     )
 
-    /** Only what counts toward some group: all that leaves the device. */
-    fun onlyFor(groups: List<AppGroup>) = DayUsage(
+    /** Only what counts toward some group, and the counts: all that leaves the device. */
+    fun onlyFor(groups: List<AppGroup>) = copy(
         apps = apps.filterKeys { app -> groups.any { app in it.packages } },
         sites = sites.filterKeys { host -> groups.any { g -> g.sites.any { siteCovers(it, host) } } },
     )

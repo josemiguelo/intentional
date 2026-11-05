@@ -63,3 +63,20 @@ class UsageAcrossDevicesTest {
         assertEquals(DayUsage(apps = mapOf("hypr:freetube" to 1L), sites = mapOf("m.youtube.com" to 3L)), day.onlyFor(groups))
     }
 }
+
+class DecisionsTest {
+
+    @Test
+    fun decisionsAddUpAndLeaveTheDevice() {
+        val desktop = DayUsage(apps = mapOf("hypr:kitty" to 9L), opened = 2, closed = 3)
+        val phone = DayUsage(opened = 10, closed = 1)
+        assertEquals(DayUsage(apps = mapOf("hypr:kitty" to 9L), opened = 12, closed = 4), desktop + phone)
+        // Group filtering drops kitty's time but never the counts.
+        assertEquals(DayUsage(opened = 2, closed = 3), desktop.onlyFor(emptyList()))
+    }
+
+    @Test
+    fun olderDevicesWithoutCountsStillParse() {
+        assertEquals(DayUsage(sites = mapOf("x.com" to 1L)), DayUsage.parse("""{"sites":{"x.com":1}}"""))
+    }
+}

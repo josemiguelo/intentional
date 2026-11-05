@@ -130,10 +130,14 @@ fun SettingsAppsScreen(
                 }
             }
 
-            AppsTab.CONSIDERED -> FlagList(
-                apps.filter { it.packageName in considered },
-                empty = "no considered apps",
+            AppsTab.CONSIDERED -> ConsideredList(
+                here = apps.filter { it.packageName in considered },
+                // Synced from the desktop or the TV: not apps installed here.
+                elsewhere = (considered - apps.map { it.packageName }.toSet()).sorted(),
                 row = ::row,
+                frictionLabel = { frictionVersion.let { _ -> frictionFor(it).label } },
+                onCycleFriction = onCycleFriction,
+                onRemove = onToggleConsidered,
             )
 
             AppsTab.BATCHED -> FlagList(
@@ -149,6 +153,57 @@ fun SettingsAppsScreen(
                 frictionVersion = frictionVersion,
                 row = ::row,
             )
+        }
+    }
+}
+
+/**
+ * The considered apps installed here, then those considered on other
+ * devices (sync shares one list), which this device can only show by id:
+ * their friction can be cycled and they can be removed from here too.
+ */
+@Composable
+private fun ConsideredList(
+    here: List<AppEntry>,
+    elsewhere: List<String>,
+    row: (AppEntry) -> @Composable () -> Unit,
+    frictionLabel: (String) -> String,
+    onCycleFriction: (String) -> Unit,
+    onRemove: (String) -> Unit,
+) {
+    if (here.isEmpty() && elsewhere.isEmpty()) {
+        Text("no considered apps", style = LauncherTheme.body.copy(color = LauncherTheme.muted))
+        return
+    }
+    LazyColumn {
+        items(here, key = { it.packageName + it.className }) { row(it)() }
+        if (elsewhere.isNotEmpty()) {
+            item(key = "elsewhere") {
+                Text(
+                    "on other devices",
+                    style = LauncherTheme.caption,
+                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+                )
+            }
+            items(elsewhere, key = { "elsewhere:$it" }) { app ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                    Text(
+                        if (app.startsWith("hypr:")) "desktop · ${app.removePrefix("hypr:")}" else "other device · $app",
+                        style = LauncherTheme.body.copy(color = LauncherTheme.muted),
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        frictionLabel(app),
+                        style = LauncherTheme.caption,
+                        modifier = Modifier.clickable { onCycleFriction(app) }.padding(horizontal = 10.dp, vertical = 4.dp),
+                    )
+                    Text(
+                        "remove",
+                        style = LauncherTheme.caption.copy(color = LauncherTheme.faint),
+                        modifier = Modifier.clickable { onRemove(app) }.padding(start = 6.dp, top = 4.dp, bottom = 4.dp),
+                    )
+                }
+            }
         }
     }
 }

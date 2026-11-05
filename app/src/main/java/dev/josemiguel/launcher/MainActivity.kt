@@ -304,7 +304,7 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onResetToday = {
                                         prefs.resetToday()
-                                        countsToday = prefs.countsToday()
+                                        countsToday = prefs.countsTodayEverywhere()
                                     },
                                 )
 
@@ -405,7 +405,7 @@ class MainActivity : ComponentActivity() {
                                     onOpen = { openOrBlock(s.app) },
                                     onClose = {
                                         prefs.incrementPausedClosed()
-                                        countsToday = prefs.countsToday()
+                                        countsToday = prefs.countsTodayEverywhere()
                                         leave()
                                     },
                                 )
@@ -474,7 +474,7 @@ class MainActivity : ComponentActivity() {
         pauseSeconds = prefs.pauseSeconds
         longPauseSeconds = prefs.longPauseSeconds
         dropTimes = prefs.dropTimes
-        countsToday = prefs.countsToday()
+        countsToday = prefs.countsTodayEverywhere()
         heldReady = HeldNotifications.ready(this)
         listenerEnabled = NotificationManagerCompat
             .getEnabledListenerPackages(this)
@@ -629,7 +629,7 @@ class MainActivity : ComponentActivity() {
 
     private fun open(app: AppEntry) {
         prefs.incrementIntentional()
-        countsToday = prefs.countsToday()
+        countsToday = prefs.countsTodayEverywhere()
         // It passed the pause (or isn't considered): the guard mustn't pause it again.
         PauseGate.approve(app.packageName)
         screen = rootScreen

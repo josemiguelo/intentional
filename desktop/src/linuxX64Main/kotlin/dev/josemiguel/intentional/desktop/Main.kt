@@ -4,7 +4,7 @@ import dev.josemiguel.intentional.core.DayUsage
 import dev.josemiguel.intentional.core.parseGroups
 import dev.josemiguel.intentional.core.usedMs
 
-const val VERSION = "0.5.1"
+const val VERSION = "0.5.2"
 
 /**
  * `intentional` runs the daemon; `intentional status` prints today's budget
@@ -50,4 +50,6 @@ private fun status() {
         val mark = if (used >= g.limitMinutes) "  · used up" else ""
         println("${g.name.padEnd(12)} ${used}m / ${g.limitMinutes}m$mark")
     }
+    println()
+    println("${usage.opened} intentional · ${usage.closed} paused-and-closed")
 }

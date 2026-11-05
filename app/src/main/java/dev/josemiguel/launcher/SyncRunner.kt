@@ -104,11 +104,14 @@ object SyncRunner {
             }
 
             val packages = limited.flatMap { it.packages }.toSet()
+            val (opened, closed) = prefs.countsToday()
             val mine = DayUsage(
                 apps = if (UsageStatsRepository.hasPermission(context)) {
                     UsageStatsRepository.foregroundMsToday(context, packages)
                 } else emptyMap(),
                 sites = prefs.sitesToday(),
+                opened = opened,
+                closed = closed,
             ).onlyFor(limited)
             val day = LocalDate.now().toString()
             if (prunedOn != day) {

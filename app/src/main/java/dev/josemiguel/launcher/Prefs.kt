@@ -317,9 +317,16 @@ class Prefs(context: Context) {
         }
     }
 
-    /** (intentional opens, paused-and-closed) for today. */
+    /** (intentional opens, paused-and-closed) for today, on this device. */
     fun countsToday(): Pair<Int, Int> =
         sp.getInt("intentional-${todaySuffix()}", 0) to sp.getInt("paused-${todaySuffix()}", 0)
+
+    /** Today's counts across every device: this one's plus, with sync, the others' last known. */
+    fun countsTodayEverywhere(): Pair<Int, Int> {
+        val (opened, closed) = countsToday()
+        val others = SyncRunner.othersToday() ?: return opened to closed
+        return opened + others.opened to closed + others.closed
+    }
 
     /** Daily counters for the last [days] days, most recent first. */
     fun history(days: Int): List<DayCounts> {
