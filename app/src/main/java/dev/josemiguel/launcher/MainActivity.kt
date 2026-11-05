@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.app.NotificationManagerCompat
 import dev.josemiguel.intentional.core.AppGroup
 import dev.josemiguel.intentional.core.WindDown
+import dev.josemiguel.intentional.core.usedMs
 import dev.josemiguel.launcher.ui.AppOptionsDialog
 import dev.josemiguel.launcher.ui.BlockedScreen
 import dev.josemiguel.launcher.ui.GroupsScreen
@@ -349,6 +350,12 @@ class MainActivity : ComponentActivity() {
                                     canChangeLimit = { prefs.canChangeGroupLimit(it) },
                                     daysUntilChangeable = { prefs.daysUntilChangeable(it) },
                                     isOverBudget = ::isOverBudget,
+                                    othersToday = { g -> SyncRunner.othersToday()?.let { g.usedMs(it) / 60_000 } },
+                                    installedHere = apps.map { it.packageName }.toSet(),
+                                    onRemoveApp = { _, app ->
+                                        prefs.assignToGroup(app, null)
+                                        groupsVersion++
+                                    },
                                     usageToday = {
                                         UsageStatsRepository.groupMinutesToday(this@MainActivity, it.packages) to
                                             UsageStatsRepository.groupSiteMinutes(this@MainActivity, it)

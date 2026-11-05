@@ -8,16 +8,19 @@ const val VERSION = "0.4.0"
 
 /**
  * `intentional` runs the daemon; `intentional status` prints today's budget
- * use per group; `intentional --version` its version. Brave runs it as the native host, passing the extension's
+ * use per group; `intentional apps` and `intentional group …` put desktop
+ * apps in groups (GroupsCli); `intentional --version` its version. Brave runs it as the native host, passing the extension's
  * origin ("chrome-extension://…/").
  */
 fun main(args: Array<String>) {
     when {
         args.any { it.startsWith("chrome-extension://") } -> NativeHost.run()
         args.firstOrNull() == "status" -> status()
+        args.firstOrNull() == "apps" -> GroupsCli.apps()
+        args.firstOrNull() == "group" -> GroupsCli.run(args.drop(1))
         args.firstOrNull() == "--version" -> println("intentional $VERSION")
         args.isEmpty() || args.first() == "daemon" -> Daemon().run()
-        else -> println("usage: intentional [daemon | status | --version]")
+        else -> println("usage: intentional [daemon | status | apps | group … | --version]")
     }
 }
 

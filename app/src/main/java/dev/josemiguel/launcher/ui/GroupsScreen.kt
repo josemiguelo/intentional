@@ -40,6 +40,11 @@ fun GroupsScreen(
     isOverBudget: (AppGroup) -> Boolean,
     /** Today's (app minutes, site minutes) for a group. */
     usageToday: (AppGroup) -> Pair<Long, Long>,
+    /** The other devices' minutes today for a group, or null without sync. */
+    othersToday: (AppGroup) -> Long?,
+    /** Packages installed here: a group's other members live on other devices. */
+    installedHere: Set<String>,
+    onRemoveApp: (group: String, app: String) -> Unit,
     onAddGroup: (String) -> Unit,
     onDeleteGroup: (String) -> Unit,
     onSetLimit: (String, Int) -> Unit,
@@ -89,12 +94,27 @@ fun GroupsScreen(
                             if (!changeable) " · locked ${daysUntilChangeable(group)}d" else "",
                         style = LauncherTheme.caption,
                     )
+                    val others = othersToday(group)
                     Text(
-                        "today ${appMinutes + siteMinutes} min · app $appMinutes · sites $siteMinutes",
+                        "today ${appMinutes + siteMinutes + (others ?: 0)} min · app $appMinutes · sites $siteMinutes" +
+                            if (others != null) " · other devices $others" else "",
                         style = LauncherTheme.caption.copy(color = LauncherTheme.faint),
                     )
                 }
                 RemoveLink("delete", locked = over) { onDeleteGroup(group.name) }
+            }
+
+            // Members that aren't apps on this device (desktop windows, the
+            // TV's apps): listed so they can be seen and removed from here.
+            group.packages.filter { it !in installedHere }.sorted().forEach { app ->
+                Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 2.dp, bottom = 2.dp)) {
+                    Text(
+                        if (app.startsWith("hypr:")) "desktop · ${app.removePrefix("hypr:")}" else "other device · $app",
+                        style = LauncherTheme.body.copy(color = LauncherTheme.muted),
+                        modifier = Modifier.weight(1f),
+                    )
+                    RemoveLink("remove", locked = over) { onRemoveApp(group.name, app) }
+                }
             }
 
             group.sites.sorted().forEach { site ->
