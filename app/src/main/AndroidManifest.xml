@@ -22,10 +22,24 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- TV apps, which often declare only this one -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+        </intent>
     </queries>
+
+    <!-- Also a TV launcher (Android TV / Google TV), where there's no touchscreen -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
 
     <application
         android:label="Intentional"
+        android:banner="@drawable/banner"
         android:enableOnBackInvokedCallback="false"
         android:theme="@style/Theme.Intentional">
 
@@ -43,10 +57,12 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
 
-            <!-- Also openable as a normal app, to try it before setting as default -->
+            <!-- Also openable as a normal app, to try it before setting as default;
+                 on a TV, from the apps row -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
         <receiver

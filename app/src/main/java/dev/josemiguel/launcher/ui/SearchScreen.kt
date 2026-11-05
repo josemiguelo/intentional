@@ -91,6 +91,7 @@ fun SearchScreen(
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .onSelectLongPress { onLongPressApp(app) }
                         .combinedClickable(
                             onClick = { onOpenApp(app) },
                             onLongClick = { onLongPressApp(app) },

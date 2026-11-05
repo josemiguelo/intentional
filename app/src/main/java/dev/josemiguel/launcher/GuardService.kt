@@ -29,7 +29,7 @@ import dev.josemiguel.launcher.guard.ScreenInfo
 import dev.josemiguel.launcher.ui.Palette
 
 /**
- * The launcher's watchdog. It does three jobs, all triggered by foreground-app
+ * The launcher's watchdog. Its jobs, all triggered by foreground-app
  * changes:
  *
  * 1. Strict mode (always on): landing on the screen that switches the default
@@ -48,6 +48,8 @@ import dev.josemiguel.launcher.ui.Palette
  * 3. Website time: the browser's address bar feeds [SiteTracker], which counts
  *    on-screen time per site toward group budgets; a site whose group is over
  *    budget is covered and its tab moved to the new-tab page.
+ *
+ * 4. On a TV, Home opening the stock launcher comes back here instead.
  *
  * Hard-won platform notes (Samsung, Android 13+):
  * - Sideloaded apps need the ACCESS_RESTRICTED_SETTINGS appop allowed or the
@@ -71,6 +73,8 @@ class GuardService : AccessibilityService() {
     private var launchableRefreshedAt = 0L
 
     private var lastPipCheck = 0L
+
+    private val isTv by lazy { Tv.isTv(this) }
 
     /** The overlay hiding a blocked screen while HOME animates, or null. */
     private var shield: View? = null
@@ -148,7 +152,7 @@ class GuardService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        Log.i(TAG, "connected, policy=${policy.javaClass.simpleName}")
+        Log.i(TAG, "connected, policy=${policy.javaClass.simpleName}, tv=$isTv")
         registerMediaSessionListener()
         registerReceiver(screenOff, IntentFilter(Intent.ACTION_SCREEN_OFF))
         screenOffRegistered = true
@@ -331,6 +335,8 @@ class GuardService : AccessibilityService() {
         if (type != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
 
+        if (isTv && pkg in Tv.STOCK_LAUNCHERS) return takeOverTvHome(pkg)
+
         updateLimitMonitoring(pkg)
 
         // Strict-mode blocking is scoped to system settings screens.
@@ -358,6 +364,19 @@ class GuardService : AccessibilityService() {
             policy.isVpnControlScreen(screen)
 
         if (blocked) block(screen.className)
+    }
+
+    /**
+     * The TV's Home button opens the stock launcher, ignoring the default home
+     * app (Google TV offers no way to change it), so it's sent straight back
+     * here — the same takeover third-party TV launchers do. Nothing is
+     * disabled; the stock launcher only flashes.
+     */
+    private fun takeOverTvHome(pkg: String) {
+        Log.i(TAG, "tv home: $pkg")
+        startActivity(
+            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 
     private fun block(what: String) {
@@ -510,8 +529,7 @@ class GuardService : AccessibilityService() {
     private fun launchablePackages(): Set<String> {
         val now = SystemClock.elapsedRealtime()
         if (launchable.isEmpty() || now - launchableRefreshedAt > LAUNCHABLE_TTL_MS) {
-            val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-            launchable = packageManager.queryIntentActivities(intent, 0)
+            launchable = AppRepository.launchable(this)
                 .map { it.activityInfo.packageName }
                 .toSet()
             launchableRefreshedAt = now

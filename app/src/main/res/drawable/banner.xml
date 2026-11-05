@@ -1,0 +1,14 @@
+<!-- The TV apps-row banner (320x180px at xhdpi): the notification icon's dot
+     on Tokyo Night's background, no text, no logo. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="160dp"
+    android:height="90dp"
+    android:viewportWidth="160"
+    android:viewportHeight="90">
+    <path
+        android:fillColor="#1A1B26"
+        android:pathData="M0,0h160v90h-160z" />
+    <path
+        android:fillColor="#7AA2F7"
+        android:pathData="M80,45m-12,0a12,12 0,1 1,24 0a12,12 0,1 1,-24 0" />
+</vector>

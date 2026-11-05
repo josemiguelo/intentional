@@ -95,6 +95,7 @@ class MainActivity : ComponentActivity() {
     private val adminComponent by lazy {
         android.content.ComponentName(this, UninstallGuardAdmin::class.java)
     }
+    private val isTv by lazy { Tv.isTv(this) }
     private var windDownEnabled by mutableStateOf(true)
     private var windDownStart by mutableStateOf(LocalTime.of(22, 0))
     private var windDownEnd by mutableStateOf(LocalTime.of(6, 0))
@@ -186,6 +187,7 @@ class MainActivity : ComponentActivity() {
                                     heldReadyCount = heldReady.size,
                                     needsListenerGrant = batched.isNotEmpty() && !listenerEnabled,
                                     isDefaultLauncher = isDefaultLauncher,
+                                    isTv = isTv,
                                     onRequestDefault = ::requestDefaultLauncher,
                                     onOpenTray = {
                                         heldReady = HeldNotifications.ready(this@MainActivity)

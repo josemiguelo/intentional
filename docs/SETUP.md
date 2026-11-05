@@ -181,6 +181,29 @@ done
 `run-as` needs the debug build. The files are app data: a reinstall with
 `install -r` keeps them; uninstalling removes them.
 
+## Android TV / Google TV
+
+The same APK runs on a TV (tested target: Xiaomi TV Stick 4K 2nd gen, Google
+TV). Everything is set up over adb, since TV settings hide most of these pages:
+
+1. **Network debugging** on the TV: Settings → System → About → press *Android
+   TV OS build* 7 times, then Developer options → **Network debugging** on.
+   `adb connect <tv-ip>:5555` and accept the prompt on the TV.
+2. **Install** and grant, as on the phone: `adb install -r app-debug.apk`, then
+   the appops (`GET_USAGE_STATS`, `ACCESS_RESTRICTED_SETTINGS`), the battery
+   whitelist, and the guard via `enabled_accessibility_services` (section 4's
+   adb path).
+3. **Home** — Google TV has no default-home setting and its Home button always
+   opens the stock launcher. The guard sends that straight back to Intentional,
+   so Home works once the guard is on; the stock screen may flash. Nothing is
+   disabled, so removing the guard restores the stock home.
+
+On the remote, home shows **→ search** and **→ settings** rows (there's no
+swipe-up or clock long-press), and **holding select** on an app opens its
+options, as long-press does on a phone. TV apps are listed from their TV
+entry: YouTube on a TV is `com.google.android.youtube.tv`, a different package
+from the phone's, so add it to the youtube group separately.
+
 ## After every reinstall
 
 `adb install -r` keeps app data but **resets these**, so redo them:
