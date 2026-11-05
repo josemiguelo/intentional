@@ -3,7 +3,7 @@ package dev.josemiguel.intentional.desktop
 import dev.josemiguel.intentional.core.parseGroups
 import dev.josemiguel.intentional.core.usedMs
 
-const val VERSION = "0.1.0"
+const val VERSION = "0.2.0"
 
 /**
  * `intentional` runs the daemon; `intentional status` prints today's budget

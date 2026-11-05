@@ -42,6 +42,11 @@ private val stopping = AtomicInt(0)
  * groups: an over-budget app's window is closed, and over-budget sites go to
  * the extension, which moves their tabs off and refuses them until tomorrow.
  *
+ * Nothing counts while the screen is locked, nor the screensaver's own
+ * window: Omarchy's screensaver takes focus after a couple of idle minutes,
+ * which ends a site's or app's time by itself, and its lock kills the
+ * screensaver, leaving focus to whatever is under the lock.
+ *
  * Groups are read from [Paths.groups] (re-read when the file changes), the
  * day's time is kept in [Paths.usage] and saved every [SAVE_MS].
  */
@@ -65,6 +70,9 @@ class Daemon {
     private val closedAt = mutableMapOf<String, Long>()
 
     private val clients = mutableMapOf<Int, LineReader>()
+
+    private var locked = false
+    private var lastLockCheck = 0L
 
     private var lastTick = monotonicMs()
     private var lastEnforce = 0L
@@ -142,8 +150,18 @@ class Daemon {
     }
 
     private fun tick() {
-        credit()
         val now = monotonicMs()
+        if (now - lastLockCheck >= LOCK_CHECK_MS) {
+            lastLockCheck = now
+            // Credit up to the change, so the time on either side lands right.
+            val nowLocked = Hyprland.isLocked()
+            if (nowLocked != locked) {
+                credit()
+                locked = nowLocked
+                log(if (locked) "locked: not counting" else "unlocked")
+            }
+        }
+        credit()
         if (now - lastEnforce >= ENFORCE_MS) enforce()
         if (now - lastSave >= SAVE_MS) save()
     }
@@ -155,8 +173,8 @@ class Daemon {
         lastTick = now
         rollDay()
         // A long gap means the loop didn't run (suspend): count none of it.
-        if (ms <= 0 || ms > MAX_CREDIT_MS) return
-        val window = focused ?: return
+        if (ms <= 0 || ms > MAX_CREDIT_MS || locked) return
+        val window = focused?.takeUnless { it.cls in NOT_COUNTED } ?: return
         usage = if (isBrowser(window.cls)) {
             val host = browserHost ?: return
             usage.plusSite(host, ms)
@@ -224,6 +242,10 @@ class Daemon {
         const val SAVE_MS = 10_000L
         const val MAX_CREDIT_MS = 5_000L
         const val CLOSE_DEBOUNCE_MS = 3_000L
+        const val LOCK_CHECK_MS = 2_000L
+
+        /** Windows that are nobody's time: Omarchy's screensaver. */
+        val NOT_COUNTED = setOf("org.omarchy.screensaver")
 
         /** Brave windows, its web-app windows included ("brave-claude.ai__-Default"). */
         fun isBrowser(cls: String) = cls == "brave-browser" || cls.startsWith("brave-")

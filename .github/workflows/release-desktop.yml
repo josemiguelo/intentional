@@ -15,23 +15,23 @@ jobs:
   release:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
 
       # Kotlin/Native's toolchain (LLVM, sysroot), a few hundred MB per fresh download.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.konan
           key: konan-${{ runner.os }}-${{ hashFiles('build.gradle.kts') }}
 
-      - name: Core tests (JVM and linuxX64)
-        run: ./gradlew :core:allTests
+      - name: Tests (core on JVM and linuxX64, desktop)
+        run: ./gradlew :core:allTests :desktop:linuxX64Test
 
       - name: Build and pack
         run: |

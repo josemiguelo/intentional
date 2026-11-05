@@ -19,6 +19,12 @@ daemon (`desktop/`, built on the shared `:core`) and a Brave extension
   left on the site, which would be a dead end on reopening) and new visits
   are redirected there.
 
+Nothing counts while the screen is locked (an ext-session-lock, which
+Hyprland reports as `LOCK` in `j/monitors`), nor Omarchy's screensaver window,
+which takes focus after a couple of idle minutes and so ends a tab's or app's
+time by itself. With Omarchy's "stay awake" on there's no screensaver, so time
+counts until something else takes focus.
+
 The day's time is in `~/.local/state/intentional/usage/<date>.json`, saved
 every 10 seconds. `intentional status` prints each group's use.
 
@@ -56,8 +62,6 @@ and push the tag.
 ## Not yet
 
 - The pause for considered apps.
-- Idle: time counts while a window has focus, even with nobody there (the
-  phone stops at screen off).
 - Browsers other than Brave, and sites reached outside a browser (DNS
   blocking would cover those).
 

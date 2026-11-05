@@ -1,6 +1,7 @@
 package dev.josemiguel.intentional.desktop
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -56,5 +57,22 @@ object Hyprland {
         if (legacy?.trim() != "ok") log("close $address failed: ${lua?.trim()} / ${legacy?.trim()}")
     }
 
+    /** Whether a session lock (Omarchy's lock screen) is up; see [monitorsLocked]. */
+    fun isLocked(): Boolean = request("j/monitors")?.let(::monitorsLocked) ?: false
+
     data class Window(val cls: String, val address: String)
+}
+
+/**
+ * Reads a lock from `j/monitors`. Hyprland reports no lock state as such, but
+ * an active ext-session-lock is one reason a monitor can't go solitary:
+ * "LOCK" in its solitaryBlockedBy (Omarchy's omarchy-hyprland-session-locked
+ * reads the same).
+ */
+fun monitorsLocked(json: String): Boolean {
+    val monitors = runCatching { Json.parseToJsonElement(json).jsonArray }.getOrNull() ?: return false
+    return monitors.any { m ->
+        val blockers = runCatching { m.jsonObject["solitaryBlockedBy"]?.jsonArray }.getOrNull() ?: return@any false
+        blockers.any { runCatching { it.jsonPrimitive.content }.getOrNull() == "LOCK" }
+    }
 }
