@@ -80,7 +80,8 @@ terminal of its own (kitty, alacritty, ghostty or foot); **c** closes the app,
 minutes of leaving doesn't pause again; apps opening in the first 30 seconds
 of the session (autostart) aren't paused. The friction ladder is the
 phone's: `pause`, `long`, `type` (type its name), `night` (locked during
-wind-down, 22:00–06:00 here). The list is shared with the phone through sync.
+wind-down). The list, the pause lengths and the wind-down window are the
+phone's, through sync (`intentional settings` shows them).
 
 ```sh
 intentional consider steam long           # or --focused

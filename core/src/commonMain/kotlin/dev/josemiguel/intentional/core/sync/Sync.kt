@@ -2,6 +2,7 @@ package dev.josemiguel.intentional.core.sync
 
 import dev.josemiguel.intentional.core.AppGroup
 import dev.josemiguel.intentional.core.DayUsage
+import dev.josemiguel.intentional.core.Settings
 import dev.josemiguel.intentional.core.parseGroups
 import dev.josemiguel.intentional.core.toGroupsJson
 import io.ktor.client.HttpClient
@@ -22,6 +23,8 @@ import kotlinx.serialization.json.put
  * - `groups`: {blob, updatedAt}, sealed; the newest edit wins.
  * - `considered`: {blob, updatedAt}, sealed: the apps that open through a
  *   pause, each with its friction (an ordinal of Friction); likewise.
+ * - `settings`: {blob, updatedAt}, sealed: wind-down and pause lengths;
+ *   likewise.
  * - `limits/<group id>`: {minutes, changedAt} in the clear, because the
  *   server's rules enforce the once-a-week change on them.
  *
@@ -136,6 +139,22 @@ class Sync(private val config: SyncConfig, http: HttpClient = defaultHttpClient(
     }
 
     /**
+     * The shared [Settings] against the synced ones, as [reconcileGroups]
+     * but with nothing to merge: a first sync takes the server's if it has
+     * any. [local] is null on a device that has never had settings of its
+     * own (a new desktop): it takes the server's, and pushes nothing.
+     */
+    suspend fun reconcileSettings(local: Settings?, synced: SyncedSettings?, nowMs: Long): SettingsOutcome? {
+        val remote = readSealed("settings", nowMs)?.let { (raw, at) -> Settings.parse(raw) to at }
+        if (local == null) return remote?.let { SettingsOutcome(it.first, SyncedSettings(it.first, it.second), GroupsChange.ADOPTED) }
+        val (value, record, change) = reconcile(
+            local, synced?.let { it.settings to it.updatedAt }, remote,
+            merge = { base, _ -> base },
+        ) { writeSealed("settings", it.toJson(), nowMs, nowMs); nowMs }
+        return SettingsOutcome(value, SyncedSettings(record.first, record.second), change)
+    }
+
+    /**
      * The one rule for a sealed, newest-edit-wins value: [synced] is what
      * this device last agreed with the server (null before its first sync),
      * [remote] what the server has. A first sync merges and pushes the merge
@@ -208,6 +227,10 @@ data class GroupsOutcome(val groups: List<AppGroup>, val synced: SyncedGroups, v
 data class SyncedConsidered(val apps: Map<String, Int>, val updatedAt: Long)
 
 data class ConsideredOutcome(val apps: Map<String, Int>, val synced: SyncedConsidered, val change: GroupsChange)
+
+data class SyncedSettings(val settings: Settings, val updatedAt: Long)
+
+data class SettingsOutcome(val settings: Settings, val synced: SyncedSettings, val change: GroupsChange)
 
 private val considered = kotlinx.serialization.json.Json
 

@@ -1,6 +1,7 @@
 package dev.josemiguel.intentional.desktop
 
 import dev.josemiguel.intentional.core.Friction
+import dev.josemiguel.intentional.core.Settings
 import dev.josemiguel.intentional.core.WindDown
 import kotlinx.cinterop.ByteVar
 import kotlinx.cinterop.alloc
@@ -10,7 +11,6 @@ import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.set
 import kotlinx.cinterop.toKString
-import kotlinx.datetime.LocalTime
 import platform.posix.ECHO
 import platform.posix.ICANON
 import platform.posix.STDIN_FILENO
@@ -32,7 +32,7 @@ import kotlin.math.sin
  * The desktop's pause, in a terminal of its own: the considered app's window
  * waits hidden while this breathes for the app's friction (Friction, as on
  * the phone: a pause, a long pause, typing the app's name, or locked during
- * wind-down, whose rungs also double then). **c** closes, **o** opens once
+ * wind-down, whose rungs also double then), timed by the shared Settings. **c** closes, **o** opens once
  * the pause is done; the decision goes to the daemon, which shows or closes
  * the window. Closing this window without deciding closes the app.
  */
@@ -41,12 +41,8 @@ object PauseUi {
     /** The pause terminal's window class: the daemon recognises it, and doesn't count it. */
     const val CLASS = "org.intentional.pause"
 
-    private const val PAUSE_SECONDS = 8
-    private const val LONG_PAUSE_SECONDS = 25
-
-    // The phone's defaults; the desktop has no settings for these yet.
-    private val WIND_DOWN_START = LocalTime(22, 0)
-    private val WIND_DOWN_END = LocalTime(6, 0)
+    /** The shared settings (sync), or the phone's defaults before any arrive. */
+    fun settings(): Settings = readText(Paths.settings)?.let { runCatching { Settings.parse(it) }.getOrNull() } ?: Settings()
 
     /** Opens the pause for [app] in the first terminal found that takes a window class. */
     fun launch(app: String) {
@@ -66,9 +62,10 @@ object PauseUi {
     fun run(app: String) {
         val name = app.removePrefix("hypr:")
         val friction = Considered.frictionOf(app) ?: Friction.PAUSE
-        val windDown = WindDown.isActive(WIND_DOWN_START, WIND_DOWN_END)
+        val settings = settings()
+        val windDown = settings.windDown && WindDown.isActive(settings.windDownStartTime, settings.windDownEndTime)
         val locked = friction == Friction.NIGHT_LOCK && windDown
-        val base = if (friction == Friction.LONG_PAUSE || friction == Friction.NIGHT_LOCK) LONG_PAUSE_SECONDS else PAUSE_SECONDS
+        val base = if (friction == Friction.LONG_PAUSE || friction == Friction.NIGHT_LOCK) settings.longPauseSeconds else settings.pauseSeconds
         val seconds = if (windDown) base * 2 else base
         val typing = friction == Friction.TYPE_NAME
 

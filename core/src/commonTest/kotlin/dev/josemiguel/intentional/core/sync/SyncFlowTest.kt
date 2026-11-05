@@ -2,6 +2,7 @@ package dev.josemiguel.intentional.core.sync
 
 import dev.josemiguel.intentional.core.AppGroup
 import dev.josemiguel.intentional.core.DayUsage
+import dev.josemiguel.intentional.core.Settings
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -161,6 +162,21 @@ class SyncFlowTest {
         assertEquals(GroupsChange.ADOPTED, back.change)
         assertEquals(merged.apps, back.apps)
         assertTrue(server.tree.values.none { "steam" in it.toString() }, "only ciphertext reaches the server")
+    }
+
+    @Test
+    fun settingsComeFromTheDeviceThatHasThem() = runTest {
+        // A new desktop with none of its own pushes nothing...
+        assertEquals(null, device("desktop").reconcileSettings(null, null, server.now))
+        // ...the phone's go up...
+        val phone = Settings(pauseSeconds = 20, longPauseSeconds = 40)
+        assertEquals(GroupsChange.PUSHED, device("phone").reconcileSettings(phone, null, server.now)!!.change)
+        // ...and the desktop takes them rather than its defaults.
+        val desktop = device("desktop").reconcileSettings(null, null, server.now)!!
+        assertEquals(GroupsChange.ADOPTED, desktop.change)
+        assertEquals(phone, desktop.settings)
+        // A fresh TV with defaults of its own takes the synced ones too (first sync: the server's win).
+        assertEquals(phone, device("tv").reconcileSettings(Settings(), null, server.now)!!.settings)
     }
 
     @Test

@@ -16,6 +16,7 @@ while the screen is on):
   usage/<day>/<device>   that device's day, sealed
   groups                 {blob: sealed groups, updatedAt}
   considered             {blob: sealed considered apps and their friction, updatedAt}
+  settings               {blob: sealed wind-down and pause lengths, updatedAt}
   limits/<group id>      {minutes, changedAt}   (in the clear, for the rules)
 ```
 
@@ -33,6 +34,9 @@ while the screen is on):
 - **Offline**, a device keeps counting and enforcing with the last numbers it
   had; two devices offline at once can each spend into the same budget until
   they reconnect.
+- **Settings** (wind-down, pause lengths) are shared too; a device that never
+  had any of its own (a new install, the desktop) takes the synced ones and
+  never pushes its defaults over them.
 - Desktop apps are `hypr:<window class>` in groups; Android packages and site
   domains need no prefix.
 

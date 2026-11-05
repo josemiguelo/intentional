@@ -18,6 +18,11 @@ object Paths {
 
     val consideredSynced get() = "$state/intentional/considered-synced.json"
 
+    /** The settings every device shares (wind-down, pause lengths); written by sync. */
+    val settings get() = "$config/intentional/settings.json"
+
+    val settingsSynced get() = "$state/intentional/settings-synced.json"
+
     /** The groups as last synced: what tells a local edit from a remote one. */
     val groupsSynced get() = "$state/intentional/groups-synced.json"
 

@@ -11,7 +11,9 @@ import dev.josemiguel.intentional.core.groupOfSite
 import dev.josemiguel.intentional.core.parseGroups
 import dev.josemiguel.intentional.core.siteCovers
 import dev.josemiguel.intentional.core.siteDomain
+import dev.josemiguel.intentional.core.Settings
 import dev.josemiguel.intentional.core.sync.SyncedConsidered
+import dev.josemiguel.intentional.core.sync.SyncedSettings
 import dev.josemiguel.intentional.core.sync.SyncedGroups
 import dev.josemiguel.intentional.core.sync.parseConsideredJson
 import dev.josemiguel.intentional.core.sync.toConsideredJson
@@ -243,6 +245,46 @@ class Prefs(context: Context) {
         set(value) {
             considered = value.keys
             sp.edit().apply { value.forEach { (app, f) -> putInt("friction-$app", f) } }.apply()
+        }
+
+    /**
+     * The shared settings as sync sees them; null while none was ever set on
+     * this device, so a fresh install takes the synced ones instead of
+     * pushing its defaults over them. Setting it writes every one.
+     */
+    var sharedSettings: Settings?
+        get() {
+            val keys = listOf("winddown_enabled", "winddown_start", "winddown_end", "pause_seconds", "long_pause_seconds")
+            if (keys.none(sp::contains)) return null
+            return Settings(
+                windDown = windDownEnabled,
+                windDownStart = timeToMinutes(windDownStart),
+                windDownEnd = timeToMinutes(windDownEnd),
+                pauseSeconds = pauseSeconds,
+                longPauseSeconds = longPauseSeconds,
+            )
+        }
+        set(value) {
+            if (value == null) return
+            sp.edit()
+                .putBoolean("winddown_enabled", value.windDown)
+                .putInt("winddown_start", value.windDownStart)
+                .putInt("winddown_end", value.windDownEnd)
+                .putInt("pause_seconds", value.pauseSeconds)
+                .putInt("long_pause_seconds", value.longPauseSeconds)
+                .apply()
+        }
+
+    var settingsSynced: SyncedSettings?
+        get() {
+            val raw = sp.getString("settings_synced", null) ?: return null
+            return SyncedSettings(Settings.parse(raw), sp.getLong("settings_synced_at", 0L))
+        }
+        set(value) {
+            sp.edit().apply {
+                if (value == null) remove("settings_synced").remove("settings_synced_at")
+                else putString("settings_synced", value.settings.toJson()).putLong("settings_synced_at", value.updatedAt)
+            }.apply()
         }
 
     /** The considered apps as last agreed with the server (sync); null before the first. */

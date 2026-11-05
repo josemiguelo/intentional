@@ -92,6 +92,13 @@ object SyncRunner {
             if (considered.apps != consideredHere) prefs.consideredWithFriction = considered.apps
             prefs.consideredSynced = considered.synced
 
+            val settingsHere = prefs.sharedSettings
+            sync.reconcileSettings(settingsHere, prefs.settingsSynced, now)?.let { settings ->
+                if (settings.change != GroupsChange.NONE) Log.i(TAG, "settings ${settings.change.name.lowercase()}")
+                if (settings.settings != settingsHere) prefs.sharedSettings = settings.settings
+                prefs.settingsSynced = settings.synced
+            }
+
             val packages = limited.flatMap { it.packages }.toSet()
             val mine = DayUsage(
                 apps = if (UsageStatsRepository.hasPermission(context)) {

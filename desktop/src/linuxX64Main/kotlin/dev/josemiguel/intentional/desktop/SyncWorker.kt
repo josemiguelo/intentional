@@ -2,12 +2,14 @@ package dev.josemiguel.intentional.desktop
 
 import dev.josemiguel.intentional.core.AppGroup
 import dev.josemiguel.intentional.core.DayUsage
+import dev.josemiguel.intentional.core.Settings
 import dev.josemiguel.intentional.core.parseGroups
 import dev.josemiguel.intentional.core.sync.GroupsChange
 import dev.josemiguel.intentional.core.sync.Sync
 import dev.josemiguel.intentional.core.sync.SyncConfig
 import dev.josemiguel.intentional.core.sync.SyncedConsidered
 import dev.josemiguel.intentional.core.sync.SyncedGroups
+import dev.josemiguel.intentional.core.sync.SyncedSettings
 import dev.josemiguel.intentional.core.sync.parseConsideredJson
 import dev.josemiguel.intentional.core.sync.toConsideredJson
 import dev.josemiguel.intentional.core.toGroupsJson
@@ -100,6 +102,21 @@ class SyncWorker(private val config: SyncConfig) {
             json.encodeToString(ConsideredRecord.serializer(), ConsideredRecord(considered.synced.updatedAt, considered.synced.apps.toConsideredJson())),
         )
 
+        // Absent until another device has shared some: then this one takes them.
+        val settingsHere = readText(Paths.settings)?.let { runCatching { Settings.parse(it) }.getOrNull() }
+        val syncedSettings = readText(Paths.settingsSynced)?.let { raw ->
+            runCatching { json.decodeFromString(SettingsRecord.serializer(), raw) }.getOrNull()
+                ?.let { SyncedSettings(Settings.parse(it.settings), it.updatedAt) }
+        }
+        sync.reconcileSettings(settingsHere, syncedSettings, now)?.let { outcome ->
+            if (outcome.change == GroupsChange.ADOPTED) log("sync: settings updated from another device")
+            if (outcome.settings != settingsHere) writeText(Paths.settings, outcome.settings.toJson())
+            writeText(
+                Paths.settingsSynced,
+                json.encodeToString(SettingsRecord.serializer(), SettingsRecord(outcome.synced.updatedAt, outcome.synced.settings.toJson())),
+            )
+        }
+
         val (day, mine) = outbox.value ?: return
         val others = sync.exchangeUsage(day, mine, now).values.fold(DayUsage()) { a, b -> a + b }
         writeText(Paths.remoteUsage(day), others.toJson())
@@ -116,6 +133,9 @@ class SyncWorker(private val config: SyncConfig) {
 
     @Serializable
     private data class ConsideredRecord(val updatedAt: Long, val apps: String)
+
+    @Serializable
+    private data class SettingsRecord(val updatedAt: Long, val settings: String)
 
     private companion object {
         const val INTERVAL_MS = 60_000L

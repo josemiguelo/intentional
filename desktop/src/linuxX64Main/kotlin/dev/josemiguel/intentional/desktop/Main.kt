@@ -4,7 +4,7 @@ import dev.josemiguel.intentional.core.DayUsage
 import dev.josemiguel.intentional.core.parseGroups
 import dev.josemiguel.intentional.core.usedMs
 
-const val VERSION = "0.4.0"
+const val VERSION = "0.4.1"
 
 /**
  * `intentional` runs the daemon; `intentional status` prints today's budget
@@ -17,12 +17,19 @@ fun main(args: Array<String>) {
         args.any { it.startsWith("chrome-extension://") } -> NativeHost.run()
         args.firstOrNull() == "status" -> status()
         args.firstOrNull() == "apps" -> GroupsCli.apps()
+        args.firstOrNull() == "settings" -> PauseUi.settings().let { s ->
+            val time = { m: Int -> "${(m / 60).toString().padStart(2, '0')}:${(m % 60).toString().padStart(2, '0')}" }
+            println("wind-down    ${if (s.windDown) "on" else "off"} · ${time(s.windDownStart)}–${time(s.windDownEnd)}")
+            println("pause        ${s.pauseSeconds}s")
+            println("long pause   ${s.longPauseSeconds}s")
+            if (readText(Paths.settings) == null) println("(defaults: no settings synced yet; change them on the phone)")
+        }
         args.firstOrNull() == "pause" && args.size == 2 -> PauseUi.run(args[1])
         args.firstOrNull() == "group" -> GroupsCli.run(args.drop(1))
         args.firstOrNull() in setOf("consider", "unconsider", "considered") -> Considered.run(args.first(), args.drop(1))
         args.firstOrNull() == "--version" -> println("intentional $VERSION")
         args.isEmpty() || args.first() == "daemon" -> Daemon().run()
-        else -> println("usage: intentional [daemon | status | apps | group … | consider … | unconsider … | considered | --version]")
+        else -> println("usage: intentional [daemon | status | apps | group … | consider … | unconsider … | considered | settings | --version]")
     }
 }
 
