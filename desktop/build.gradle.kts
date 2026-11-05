@@ -22,9 +22,9 @@ kotlin {
         all { languageSettings.optIn("kotlinx.cinterop.ExperimentalForeignApi") }
         linuxX64Main.dependencies {
             implementation(project(":core"))
-            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
-            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
-            implementation("io.ktor:ktor-client-core:3.2.3")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
+            implementation("io.ktor:ktor-client-core:3.6.1")
         }
         linuxX64Test.dependencies {
             implementation(kotlin("test"))
