@@ -195,6 +195,10 @@ class GuardService : AccessibilityService() {
         if (UsageStatsRepository.groupUsedMinutes(this, group) < group.limitMinutes) return
         Log.i(TAG, "site budget used: $host")
         Toast.makeText(this, "$host · ${group.name.lowercase()} budget used today", Toast.LENGTH_SHORT).show()
+        // Move the tab off the site first, or reopening the browser lands on it
+        // and bounces straight back out, locking the browser for the day.
+        val redirected = rootInActiveWindow?.let(siteTracker::redirectTab) == true
+        Log.i(TAG, "redirect ${if (redirected) "sent" else "failed"}: $host")
         siteTracker.stop()
         SiteBlockVpnService.refreshSoon()
         // Reopening the browser on the same tab must re-check at once.

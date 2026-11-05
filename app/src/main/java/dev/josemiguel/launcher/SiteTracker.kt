@@ -2,6 +2,8 @@ package dev.josemiguel.launcher
 
 import android.content.Context
 import android.net.Uri
+import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.SystemClock
 import android.util.Log
@@ -55,6 +57,33 @@ class SiteTracker(
         }
     }
 
+    /**
+     * Points the tab in [root] at the browser's new-tab page by typing into its
+     * address bar, so a blocked site isn't the tab the browser reopens on —
+     * HOME alone leaves it there, and every reopen bounces straight back out.
+     * False if it couldn't: the bar is scrolled away, an action is refused, or
+     * the platform has no IME-enter action (API 29). True means the address
+     * was sent, not that the page changed; the next bar read shows that.
+     */
+    fun redirectTab(root: AccessibilityNodeInfo): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return false
+        val pkg = root.packageName?.toString() ?: return false
+        val target = NEW_TAB[pkg] ?: return false
+        val bar = root.findAccessibilityNodeInfosByViewId("$pkg:id/url_bar").firstOrNull()
+            ?: return false
+        if (!bar.isFocused &&
+            !bar.performAction(AccessibilityNodeInfo.ACTION_FOCUS) &&
+            !bar.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        ) return false
+        // Focusing swaps the bar into edit mode; act on its current state.
+        bar.refresh()
+        val text = Bundle().apply {
+            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, target)
+        }
+        if (!bar.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, text)) return false
+        return bar.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
+    }
+
     /** The browser left the screen, or the screen turned off. */
     fun stop() = start(null)
 
@@ -83,6 +112,12 @@ class SiteTracker(
 
         /** Browsers whose address bar is the Chromium `url_bar` view. */
         val BROWSERS = setOf("com.android.chrome", "com.brave.browser")
+
+        /** Each browser's new-tab page: its bar shows the hint text, which stops the clock. */
+        private val NEW_TAB = mapOf(
+            "com.android.chrome" to "chrome://newtab",
+            "com.brave.browser" to "brave://newtab",
+        )
 
         /** "m.facebook.com/?locale=es_LA" → "m.facebook.com"; null for non-addresses. */
         fun hostOf(text: String): String? {
