@@ -113,9 +113,15 @@ class GuardService : AccessibilityService() {
         override fun onReceive(context: Context, intent: Intent) {
             siteTracker.stop()
             // The tab is still on the site: leave home, so unlocking can't show it.
+            // The HOME global action is dropped while the screen is off, so the
+            // home screen is started as an activity instead, which isn't.
             if (blockedHost != null) {
                 endSiteBlock()
-                performGlobalAction(GLOBAL_ACTION_HOME)
+                startActivity(
+                    Intent(Intent.ACTION_MAIN)
+                        .addCategory(Intent.CATEGORY_HOME)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
             }
         }
     }
@@ -315,10 +321,21 @@ class GuardService : AccessibilityService() {
             handler.postDelayed(graceOver, GRACE_MS + 100)
             val redirected = rootInActiveWindow?.let(siteTracker::redirectTab) == true
             Log.i(TAG, "grace: $host, redirect ${if (redirected) "sent" else "failed"}")
+            // A page still loading can overwrite that address: try once more
+            // when it has settled, if the tab is still on the site.
+            handler.removeCallbacks(graceRetry)
+            handler.postDelayed(graceRetry, GRACE_RETRY_MS)
         }
         if (now - graceStartedAt < GRACE_MS) return true
         graceHost = null
         return false
+    }
+
+    private val graceRetry = Runnable {
+        val host = graceHost ?: return@Runnable
+        if (siteTracker.current != host) return@Runnable
+        val redirected = rootInActiveWindow?.let(siteTracker::redirectTab) == true
+        Log.i(TAG, "grace: $host, retry ${if (redirected) "sent" else "failed"}")
     }
 
     private val graceOver = Runnable {
@@ -553,6 +570,7 @@ class GuardService : AccessibilityService() {
         handler.removeCallbacks(hideShield)
         hideShield.run()
         handler.removeCallbacks(graceOver)
+        handler.removeCallbacks(graceRetry)
         endSiteBlock()
         SyncRunner.stop()
         siteTracker.stop()
@@ -577,5 +595,6 @@ class GuardService : AccessibilityService() {
         const val SITE_BLOCK_MAX_MS = 30_000L
         const val GRACE_ARM_MS = 120_000L
         const val GRACE_MS = 8_000L
+        const val GRACE_RETRY_MS = 2_000L
     }
 }
