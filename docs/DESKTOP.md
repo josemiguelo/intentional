@@ -24,21 +24,34 @@ every 10 seconds. `intentional status` prints each group's use.
 
 ## Install
 
-Needs a JDK for Gradle and `libxcrypt-compat` (Kotlin/Native binaries link
-`libcrypt.so.1`, which Arch's libxcrypt no longer ships).
+**From a release** (no checkout, JDK or Kotlin/Native needed): each `v*` tag
+publishes `intentional-<version>-linux-x64.tar.gz` and its `.sha256`
+(`.github/workflows/release-desktop.yml`). Unpack it and run its `install.sh`;
+loadout's `intentional` program does exactly that. Needs `libxcrypt-compat`:
+Kotlin/Native binaries link `libcrypt.so.1`, which Arch's libxcrypt no
+longer ships.
+
+**From a checkout** (needs a JDK for Gradle):
 
 ```sh
-desktop/install.sh          # build, install, (re)start; idempotent
-desktop/install.sh check    # is everything in place?
+desktop/install.sh          # build, then install as a release would
+desktop/install.sh check    # is everything in place? prints the version
+desktop/package.sh --archive  # just build and pack a release locally
 ```
 
-It installs `~/.local/bin/intentional`, the `intentional.service` systemd user
-unit (for the graphical session), the extension in
-`~/.local/share/intentional/extension`, and Brave's native-messaging manifest
-for it; and it adds the extension to Omarchy's `--load-extension` line in
-`~/.config/brave-flags.conf` (Chromium reads only the last such line). Restart
-Brave once to load it. If Omarchy rewrites that file, `check` fails and
-`install` adds it back.
+Either way it installs `~/.local/bin/intentional`, the `intentional.service`
+systemd user unit (for the graphical session), the extension in
+`~/.local/share/intentional/extension` (the plain files in `browser/`, loaded
+unpacked; the `key` in its manifest pins the ID the native-messaging manifest
+allows), Brave's native-messaging manifest, and a copy of `install.sh` for
+`check`; and it adds the extension to Omarchy's `--load-extension` line in
+`~/.config/brave-flags.conf` (Chromium reads only the last such line). Quit
+Brave fully once (web-app windows keep it running) and start it again to load
+the extension. If Omarchy rewrites that file, `check` fails and `install` adds
+it back.
+
+**Releasing:** bump `VERSION` in `desktop/.../Main.kt`, then tag `v<VERSION>`
+and push the tag.
 
 ## Not yet
 
