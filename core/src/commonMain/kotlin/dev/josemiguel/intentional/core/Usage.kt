@@ -5,7 +5,7 @@ import kotlinx.serialization.json.Json
 
 /**
  * One day's on-screen time on a device, in ms: [apps] by app id (an Android
- * package, a Hyprland window class) and [sites] by host. A group's budget is
+ * package, or "hypr:<window class>" on a desktop) and [sites] by host. A group's budget is
  * spent by both (see [usedMs]).
  */
 @Serializable
@@ -16,6 +16,18 @@ data class DayUsage(
     fun plusApp(app: String, ms: Long) = copy(apps = apps + (app to (apps[app] ?: 0L) + ms))
 
     fun plusSite(host: String, ms: Long) = copy(sites = sites + (host to (sites[host] ?: 0L) + ms))
+
+    /** Two devices' days, added: what a group spends across them. */
+    operator fun plus(other: DayUsage) = DayUsage(
+        apps = (apps.keys + other.apps.keys).associateWith { (apps[it] ?: 0L) + (other.apps[it] ?: 0L) },
+        sites = (sites.keys + other.sites.keys).associateWith { (sites[it] ?: 0L) + (other.sites[it] ?: 0L) },
+    )
+
+    /** Only what counts toward some group: all that leaves the device. */
+    fun onlyFor(groups: List<AppGroup>) = DayUsage(
+        apps = apps.filterKeys { app -> groups.any { app in it.packages } },
+        sites = sites.filterKeys { host -> groups.any { g -> g.sites.any { siteCovers(it, host) } } },
+    )
 
     fun toJson(): String = json.encodeToString(serializer(), this)
 

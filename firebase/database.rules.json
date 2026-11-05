@@ -1,0 +1,27 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "usage": {
+          "$day": {
+            "$device": {
+              ".write": "auth != null && auth.uid === $uid",
+              ".validate": "newData.isString()"
+            }
+          }
+        },
+        "groups": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.hasChildren(['blob', 'updatedAt']) && newData.child('blob').isString() && newData.child('updatedAt').isNumber()"
+        },
+        "limits": {
+          "$group": {
+            ".write": "auth != null && auth.uid === $uid && (!data.exists() || now - data.child('changedAt').val() >= 604800000)",
+            ".validate": "newData.hasChildren(['minutes', 'changedAt']) && newData.child('minutes').isNumber() && newData.child('minutes').val() >= 5 && newData.child('minutes').val() <= 60 && (data.exists() ? newData.child('changedAt').val() === now : newData.child('changedAt').val() <= now)"
+          }
+        }
+      }
+    }
+  }
+}

@@ -38,3 +38,28 @@ class UsageTest {
         assertEquals(DayUsage(), DayUsage.parse("{}"))
     }
 }
+
+class UsageAcrossDevicesTest {
+
+    private val groups = listOf(
+        AppGroup("youtube", setOf("com.google.android.youtube", "hypr:freetube"), 30, 0L, setOf("youtube.com")),
+    )
+
+    @Test
+    fun devicesAddUp() {
+        val phone = DayUsage(apps = mapOf("com.google.android.youtube" to 600_000L), sites = mapOf("m.youtube.com" to 60_000L))
+        val desktop = DayUsage(apps = mapOf("hypr:freetube" to 300_000L), sites = mapOf("m.youtube.com" to 40_000L, "www.youtube.com" to 5_000L))
+        val total = phone + desktop
+        assertEquals(100_000L, total.sites["m.youtube.com"])
+        assertEquals(1_005_000L, groups.single().usedMs(total))
+    }
+
+    @Test
+    fun onlyGroupTimeLeavesTheDevice() {
+        val day = DayUsage(
+            apps = mapOf("hypr:freetube" to 1L, "hypr:kitty" to 2L),
+            sites = mapOf("m.youtube.com" to 3L, "github.com" to 4L),
+        )
+        assertEquals(DayUsage(apps = mapOf("hypr:freetube" to 1L), sites = mapOf("m.youtube.com" to 3L)), day.onlyFor(groups))
+    }
+}
