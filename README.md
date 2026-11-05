@@ -39,10 +39,19 @@ The platform-free rules and sync are shared in `core/`.
 
 ## Build & install
 
+Each release on GitHub carries a signed APK, `intentional-<version>.apk`
+(phone and TV alike). Install it with `adb install -r`, or follow the repo
+with [Obtainium](https://github.com/ImranR98/Obtainium) to get updates on the
+device. To build it yourself:
+
 ```sh
-./gradlew assembleDebug
-adb install app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleDebug                              # debuggable, unshrunk
+./gradlew assembleRelease -PappVersion=0.4.0         # what releases ship
 ```
+
+Every build is signed with the same key (the release key is this project's
+first debug key, kept in 1Password and the repo's Actions secrets), so any of
+them installs over any other without losing settings or permissions.
 
 Then press Home and choose Intentional as the default launcher (or open it
 from the app drawer to try it first).

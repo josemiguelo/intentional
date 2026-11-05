@@ -527,6 +527,9 @@ class MainActivity : ComponentActivity() {
     /** The guard's pause request ([EXTRA_PAUSE]), taken last so onStart's reset can't undo it. */
     override fun onResume() {
         super.onResume()
+        // Every time the launcher comes up (Home included): a config dropped in
+        // while the guard runs starts sync now, not at the next rebind.
+        if (DropIn.import(this)) SyncRunner.start(this)
         val pkg = intent.getStringExtra(EXTRA_PAUSE) ?: return
         intent.removeExtra(EXTRA_PAUSE)
         val app = apps.find { it.packageName == pkg } ?: return

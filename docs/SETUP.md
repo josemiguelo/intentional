@@ -33,10 +33,27 @@ Minimum Android version: 10 (API 29).
 
 ## 1. Install
 
+The release APK from GitHub (`intentional-<version>.apk`), or a build of your
+own (see the README):
+
 ```sh
-./gradlew assembleDebug
-adb install app/build/outputs/apk/debug/app-debug.apk
+adb install -r intentional-0.4.0.apk
 ```
+
+### Handing the app files (sync config, wallpapers)
+
+Release builds aren't debuggable, so `run-as` doesn't reach their private
+files. Instead, push to the app's external folder, which adb can write and no
+other app can read (Android 11+); the app moves what it finds into its private
+storage the next time the launcher comes up or the guard connects, and deletes
+it there:
+
+```sh
+adb shell mkdir -p /sdcard/Android/data/dev.josemiguel.launcher/files
+adb push sync.json /sdcard/Android/data/dev.josemiguel.launcher/files/
+```
+
+Accepted: `sync.json`, `wallpaper-dark.webp`, `wallpaper-light.webp`.
 
 ## 2. Default launcher (required)
 
@@ -173,13 +190,13 @@ magick dark-source.webp -resize x1250 -gravity center -crop 1080x1250+0+0 +repag
   -background '#1a1b26' -compose Over -gravity center -extent 1080x2340 -flatten -quality 85 wallpaper-dark.webp
 # Light: fills the screen, cropped to the image's middle:
 magick light-source.webp -resize x2340 -gravity center -crop 1080x2340+0+0 +repage -quality 85 wallpaper-light.webp
-for f in wallpaper-dark.webp wallpaper-light.webp; do
-  adb exec-in run-as dev.josemiguel.launcher sh -c "mkdir -p files && cat > files/$f" < $f
-done
+adb shell mkdir -p /sdcard/Android/data/dev.josemiguel.launcher/files
+adb push wallpaper-dark.webp wallpaper-light.webp /sdcard/Android/data/dev.josemiguel.launcher/files/
 ```
 
-`run-as` needs the debug build. The files are app data: a reinstall with
-`install -r` keeps them; uninstalling removes them.
+Then press Home: the launcher takes them in (see "Handing the app files" in
+section 1). They're app data: a reinstall with `install -r` keeps them;
+uninstalling removes them.
 
 ## Android TV / Google TV
 

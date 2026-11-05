@@ -1,0 +1,77 @@
+# Publishes a release on a version tag (v0.4.0): the tests, then the desktop
+# guard (the linuxX64 build packed by desktop/package.sh, which machines
+# install without a checkout, a JDK or Kotlin/Native: loadout's intentional
+# program downloads it) and the signed Android APK (phone and TV), as one
+# GitHub release. The tag must match `intentional --version`.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # Ktor's curl engine (sync) links libcurl.
+      - name: libcurl
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
+
+      # Kotlin/Native's toolchain (LLVM, sysroot), a few hundred MB per fresh download.
+      - uses: actions/cache@v6
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('build.gradle.kts') }}
+
+      - name: Tests (core on JVM and linuxX64, desktop)
+        run: ./gradlew :core:allTests :desktop:linuxX64Test
+
+      - name: Build and pack
+        run: |
+          staged=$(sh desktop/package.sh --archive | tail -n 1)
+          version=$("$staged/bin/intentional" --version | cut -d' ' -f2)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME doesn't match intentional $version" >&2
+            exit 1
+          fi
+          echo "VERSION=$version" >>"$GITHUB_ENV"
+
+      # Signed with the project's key (INTENTIONAL_* secrets; 1Password has
+      # it too), the one the devices' installs already carry.
+      - name: Android APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.INTENTIONAL_KEYSTORE_BASE64 }}
+          INTENTIONAL_KEYSTORE_PASSWORD: ${{ secrets.INTENTIONAL_KEYSTORE_PASSWORD }}
+          INTENTIONAL_KEY_ALIAS: ${{ secrets.INTENTIONAL_KEY_ALIAS }}
+          INTENTIONAL_KEY_PASSWORD: ${{ secrets.INTENTIONAL_KEY_PASSWORD }}
+        run: |
+          export INTENTIONAL_KEYSTORE="$RUNNER_TEMP/release.keystore"
+          echo "$KEYSTORE_BASE64" | base64 -d >"$INTENTIONAL_KEYSTORE"
+          ./gradlew :app:assembleRelease -PappVersion="$VERSION"
+          rm -f "$INTENTIONAL_KEYSTORE"
+          cp app/build/outputs/apk/release/app-release.apk "desktop/build/dist/intentional-$VERSION.apk"
+          (cd desktop/build/dist && sha256sum "intentional-$VERSION.apk" >"intentional-$VERSION.apk.sha256")
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "desktop/build/dist/intentional-$VERSION-linux-x64.tar.gz" \
+            "desktop/build/dist/intentional-$VERSION-linux-x64.tar.gz.sha256" \
+            "desktop/build/dist/intentional-$VERSION.apk" \
+            "desktop/build/dist/intentional-$VERSION.apk.sha256" \
+            --title "intentional $VERSION" \
+            --notes "The Android app (phone and TV; signed, installs over earlier releases) and the desktop guard for Omarchy / Hyprland (daemon and Brave extension: unpack and run install.sh, or loadout's intentional program)."

@@ -65,13 +65,12 @@ Realtime Database's 10 GB.
 3. **Install it:**
    - Desktop: `~/.config/intentional/sync.json` (`chmod 600`), then
      `systemctl --user restart intentional`.
-   - Phone / TV (debug build):
+   - Phone / TV: drop it in (SETUP.md, "Handing the app files"), then press
+     Home; the launcher imports it, keeps it private and starts syncing.
      ```sh
-     adb push sync.json /data/local/tmp/sync.json
-     adb shell run-as dev.josemiguel.launcher cp /data/local/tmp/sync.json files/sync.json
-     adb shell rm /data/local/tmp/sync.json
+     adb shell mkdir -p /sdcard/Android/data/dev.josemiguel.launcher/files
+     adb push sync.json /sdcard/Android/data/dev.josemiguel.launcher/files/
      ```
-     then rebind the guard (SETUP.md, "After every reinstall").
 
 Logs: `journalctl --user -u intentional` on the desktop (`sync: …`),
 `adb logcat -s SyncRunner` on Android. `intentional status` shows all

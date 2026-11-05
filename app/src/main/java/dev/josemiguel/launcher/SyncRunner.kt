@@ -19,8 +19,8 @@ import kotlinx.coroutines.runBlocking
  * reconciled with the server (the result lands in [Prefs.groups], which
  * everything already reads), this device's group time goes up and the other
  * devices' comes down ([othersToday]), which [UsageStatsRepository]'s budget
- * use adds. Needs files/sync.json (a SyncConfig, pushed over adb: see
- * docs/SETUP.md); without it, nothing runs. Offline, the last numbers stand.
+ * use adds. Needs files/sync.json (a SyncConfig, dropped in over adb: see
+ * [DropIn]); without it, nothing runs. Offline, the last numbers stand.
  */
 object SyncRunner {
 
@@ -33,9 +33,13 @@ object SyncRunner {
     private var thread: HandlerThread? = null
     private var lastError: String? = null
 
+    /** One cycle at a time, even across a stop/start (a guard rebind) mid-cycle. */
+    private val cycleLock = Any()
+
     /** What the other devices have spent today, as of the last good sync. */
     fun othersToday(): DayUsage? = others?.takeIf { it.first == LocalDate.now().toString() }?.second
 
+    @Synchronized
     fun start(context: Context) {
         if (thread != null) return
         val app = context.applicationContext
@@ -57,6 +61,7 @@ object SyncRunner {
         Log.i(TAG, "sync on as ${config.device}")
     }
 
+    @Synchronized
     fun stop() {
         thread?.quitSafely()
         thread = null
@@ -64,7 +69,9 @@ object SyncRunner {
 
     fun configFile(context: Context) = File(context.filesDir, "sync.json")
 
-    private fun cycle(context: Context, sync: Sync) = runBlocking {
+    private fun cycle(context: Context, sync: Sync) = synchronized(cycleLock) { runCycle(context, sync) }
+
+    private fun runCycle(context: Context, sync: Sync) = runBlocking {
         try {
             val prefs = Prefs(context)
             val now = System.currentTimeMillis()

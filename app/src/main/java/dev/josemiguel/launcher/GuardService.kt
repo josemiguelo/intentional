@@ -157,6 +157,7 @@ class GuardService : AccessibilityService() {
         registerMediaSessionListener()
         registerReceiver(screenOff, IntentFilter(Intent.ACTION_SCREEN_OFF))
         screenOffRegistered = true
+        DropIn.import(this)
         SyncRunner.start(this)
     }
 
