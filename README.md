@@ -101,10 +101,12 @@ Some of what Intentional runs on lives outside this repo. What's automated:
 - **A new Omarchy machine:** a loadout `intentional` program installs the
   desktop from the latest release, and an `intentional-sync` script writes
   `~/.config/intentional/sync.json` from 1Password with the machine's device
-  name. Both run after a check that the 1Password CLI is connected through
-  the app (Settings → Developer → "Integrate with 1Password CLI"); reading the
-  secrets also needs the app unlocked. Quit Brave fully once afterwards (web
-  apps too) so it loads the extension.
+  name. The script runs after a check that the 1Password CLI is connected
+  through the app (Settings → Developer → "Integrate with 1Password CLI");
+  reading the secrets also needs the app unlocked, and it asks once per
+  terminal to approve the CLI. Unapproved, the script (and the phone/TV one
+  below) stops and writes nothing; approve and run it again. Quit Brave fully
+  once afterwards (web apps too) so it loads the extension.
 - **A new phone or TV:** `scripts/provision-android.sh <adb serial> <device
   name>` installs the latest APK, grants what adb can, hands over `sync.json`
   from 1Password and turns the guard on. Keep each device's name the same
