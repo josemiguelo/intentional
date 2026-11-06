@@ -37,7 +37,9 @@ done
 say() { printf '\033[1m==>\033[0m %s\n' "$*"; }
 a() { adb -s "$serial" "$@"; }
 
-[ "$(a get-state 2>/dev/null)" = device ] || { echo "no device $serial (adb devices)" >&2; exit 1; }
+# A USB phone can drop off for a moment; give it a little time to come back.
+timeout 30 adb -s "$serial" wait-for-device 2>/dev/null &&
+  [ "$(a get-state 2>/dev/null)" = device ] || { echo "no device $serial (adb devices)" >&2; exit 1; }
 tv=no
 a shell pm list features 2>/dev/null | grep -q android.software.leanback && tv=yes
 
