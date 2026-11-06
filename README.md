@@ -94,6 +94,39 @@ desktop/install.sh                              # desktop: build and install
 To release: bump `VERSION` in `desktop/src/linuxX64Main/.../Main.kt`, then tag
 `v<VERSION>` and push the tag.
 
+## Accounts, secrets and setting up from scratch
+
+Some of what Intentional runs on lives outside this repo. What's automated:
+
+- **A new Omarchy machine:** a loadout `intentional` program installs the
+  desktop from the latest release, and an `intentional-sync` script writes
+  `~/.config/intentional/sync.json` from 1Password with the machine's device
+  name. Both run after a check that the 1Password CLI is connected through
+  the app (Settings → Developer → "Integrate with 1Password CLI"); reading the
+  secrets also needs the app unlocked. Quit Brave fully once afterwards (web
+  apps too) so it loads the extension.
+- **A new phone or TV:** `scripts/provision-android.sh <adb serial> <device
+  name>` installs the latest APK, grants what adb can, hands over `sync.json`
+  from 1Password and turns the guard on. Keep each device's name the same
+  across runs ("phone", "tv"), or its usage starts a second record. Left on
+  the device: the default launcher (phone), the VPN prompt, Obtainium (add
+  this repo, allow it to install apps), notification access if you batch.
+
+What isn't, and where it lives:
+
+| What | Where | If it's lost |
+| --- | --- | --- |
+| Firebase project `intentional-c765d0` (Realtime Database, email sign-in, one account) | Your Google account's Firebase console | Recreate: project, database instance, enable Email/Password in the console (no API for it without Identity Platform), a web app for the API key, the account, then `firebase deploy --only database` for `firebase/database.rules.json` |
+| Sync secrets: account, password, encryption key, database URL, API key | 1Password, Personal vault: **Intentional sync** | A new encryption key can't read existing data: make a new key, update the item, and every device starts fresh |
+| Android signing key: keystore, alias, passwords | 1Password, Personal vault: **Intentional signing key**; and the repo's Actions secrets `INTENTIONAL_KEYSTORE_BASE64`, `INTENTIONAL_KEYSTORE_PASSWORD`, `INTENTIONAL_KEY_ALIAS`, `INTENTIONAL_KEY_PASSWORD` | The app can never update in place again: every device needs an uninstall (settings and permissions lost). Restore the secrets from 1Password with `gh secret set` |
+| The key for local Android builds | `~/.config/.android/debug.keystore` on the machine that builds (the same key as the release key) | Restore it from the 1Password document before building, or local builds won't install over the devices' app |
+| Database rules | `firebase/database.rules.json`, deployed by hand with `firebase deploy --only database` | Redeploy from the repo |
+
+From 2027 Google requires developer verification for apps installed on
+certified Android devices; `adb` installs stay exempt, and a free Limited
+Distribution account covers up to 20 devices
+([FAQ](https://developer.android.com/developer-verification/guides/faq)).
+
 ## Repository
 
 | Path | What |
@@ -103,6 +136,7 @@ To release: bump `VERSION` in `desktop/src/linuxX64Main/.../Main.kt`, then tag
 | `desktop/` | The desktop daemon (Kotlin/Native, linuxX64), its pause and command line, and the installer |
 | `browser/` | The Brave extension: reports the active tab, refuses over-budget sites |
 | `firebase/` | The Realtime Database rules |
+| `scripts/` | `provision-android.sh`: set up a phone or TV over adb |
 | `docs/` | [SETUP.md](docs/SETUP.md) (phone and TV), [DESKTOP.md](docs/DESKTOP.md), [SYNC.md](docs/SYNC.md) |
 
 ## Strict mode

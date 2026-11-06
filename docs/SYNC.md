@@ -71,7 +71,9 @@ Realtime Database's 10 GB.
    ```
 
    `openssl rand -base64 32` makes a key.
-3. **Install it:**
+3. **Install it** (both steps below are automated: loadout's
+   `intentional-sync` script on a desktop, `scripts/provision-android.sh` for
+   a phone or TV, each reading the 1Password item):
    - Desktop: `~/.config/intentional/sync.json` (`chmod 600`), then
      `systemctl --user restart intentional`.
    - Phone / TV: drop it in (SETUP.md, "Handing the app files"), then press

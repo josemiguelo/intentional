@@ -33,6 +33,11 @@ Minimum Android version: 10 (API 29).
 
 ## 1. Install
 
+`scripts/provision-android.sh <adb serial> <device name>` does the adb parts of
+this guide in one go (install, usage access, restricted settings, battery
+exemption, guard, sync config); the steps below are what it automates, and
+what only the device can do.
+
 The release APK from GitHub (`intentional-<version>.apk`), or a build of your
 own (see the README):
 
