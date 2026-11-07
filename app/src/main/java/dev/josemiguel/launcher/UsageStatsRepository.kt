@@ -5,7 +5,10 @@ import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.os.Process
+import android.provider.Settings
 import dev.josemiguel.intentional.core.AppGroup
+import dev.josemiguel.intentional.core.AppTime
+import dev.josemiguel.intentional.core.DayUsage
 import dev.josemiguel.intentional.core.usedMs
 import java.time.LocalDate
 import java.time.ZoneId
@@ -67,24 +70,25 @@ object UsageStatsRepository {
             foregroundMs += now - sessionStart
         }
 
-        return AppUsageToday(opens, opensLastHour, foregroundMs / 60_000)
+        // The minutes, unlike the opens, survive a boot that wiped the history.
+        val minutes = foregroundMsToday(context, setOf(packageName))[packageName] ?: 0L
+        return AppUsageToday(opens, opensLastHour, minutes / 60_000)
     }
 
     /**
      * A group's whole budget use today: its apps' foreground time plus its
-     * sites' on-screen time, here and (with sync) on the other devices.
+     * sites' on-screen time, here and (with sync) on the other devices. This
+     * device's part is never below what it last published ([SyncRunner.mineToday]).
      */
-    fun groupUsedMinutes(context: Context, group: AppGroup): Long =
-        groupMinutesToday(context, group.packages) + groupSiteMinutes(context, group) +
-            SyncRunner.othersToday()?.let(group::usedMs)?.div(60_000).orZero()
-
-    private fun Long?.orZero() = this ?: 0L
+    fun groupUsedMinutes(context: Context, group: AppGroup): Long {
+        val here = DayUsage(apps = foregroundMsToday(context, group.packages), sites = Prefs(context).sitesToday())
+        val mine = SyncRunner.mineToday()?.let(here::atLeast) ?: here
+        return (group.usedMs(mine) + (SyncRunner.othersToday()?.let(group::usedMs) ?: 0L)) / 60_000
+    }
 
     /** On-screen minutes today across a group's sites (subdomains included). */
-    fun groupSiteMinutes(context: Context, group: AppGroup): Long {
-        val prefs = Prefs(context)
-        return group.sites.sumOf(prefs::siteTimeToday) / 60_000
-    }
+    fun groupSiteMinutes(context: Context, group: AppGroup): Long =
+        group.copy(packages = emptySet()).usedMs(DayUsage(sites = Prefs(context).sitesToday())) / 60_000
 
     /**
      * Total foreground minutes today across all [packages] — the shared usage
@@ -93,8 +97,23 @@ object UsageStatsRepository {
     fun groupMinutesToday(context: Context, packages: Set<String>): Long =
         foregroundMsToday(context, packages).values.sum() / 60_000
 
-    /** Each of [packages]' foreground time today, in ms, in a single pass over the events. */
+    /**
+     * Each of [packages]' foreground time today, in ms, including what a boot
+     * that wiped the system's usage history took with it ([AppTime]).
+     */
+    @Synchronized
     fun foregroundMsToday(context: Context, packages: Set<String>): Map<String, Long> {
+        if (packages.isEmpty()) return emptyMap()
+        val reported = reportedMsToday(context, packages)
+        val boot = Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT, 0)
+        val prefs = Prefs(context)
+        val times = packages.associateWith { (prefs.appTime(it) ?: AppTime(boot = boot)).observe(reported[it] ?: 0L, boot) }
+        prefs.putAppTimes(times)
+        return times.mapValues { it.value.total }.filterValues { it > 0 }
+    }
+
+    /** Each of [packages]' foreground time today as the system reports it, in a single pass over the events. */
+    private fun reportedMsToday(context: Context, packages: Set<String>): Map<String, Long> {
         if (packages.isEmpty()) return emptyMap()
         val usageStatsManager = context.getSystemService(UsageStatsManager::class.java)
         val now = System.currentTimeMillis()

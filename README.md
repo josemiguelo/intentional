@@ -18,7 +18,8 @@ there. All three share one budget per group, synced end-to-end encrypted.
 - **A friction ladder** per app: a pause, a long pause, typing the app's name,
   or locked at night (during wind-down). Pause lengths are a setting.
 - On the phone, considered apps never appear in lists and only show up in
-  search after three typed letters of their name.
+  search after three typed letters of their name (the whole name, for a
+  shorter one like "X").
 
 **Budgets across apps, sites and devices**
 - **A group** (say "youtube") holds apps and websites and shares one daily
@@ -86,7 +87,7 @@ without losing settings or permissions. To build yourself:
 
 ```sh
 ./gradlew assembleDebug                         # Android, debuggable
-./gradlew assembleRelease -PappVersion=0.5.4    # Android, as releases ship
+./gradlew assembleRelease -PappVersion=0.5.5    # Android, as releases ship
 desktop/install.sh                              # desktop: build and install
 ./gradlew :core:allTests :desktop:linuxX64Test  # tests
 ```

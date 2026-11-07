@@ -32,6 +32,16 @@ class UsageTest {
     }
 
     @Test
+    fun atLeastTakesTheHigherOfEach() {
+        val earlier = DayUsage(apps = mapOf("a" to 10L, "b" to 3L), sites = mapOf("x.com" to 5L), opened = 4, closed = 1)
+        val now = DayUsage(apps = mapOf("a" to 2L, "c" to 8L), sites = mapOf("x.com" to 9L), opened = 1, closed = 2)
+        assertEquals(
+            DayUsage(apps = mapOf("a" to 10L, "b" to 3L, "c" to 8L), sites = mapOf("x.com" to 9L), opened = 4, closed = 2),
+            now.atLeast(earlier),
+        )
+    }
+
+    @Test
     fun roundTrips() {
         val day = DayUsage(apps = mapOf("kitty" to 5L), sites = mapOf("x.com" to 7L))
         assertEquals(day, DayUsage.parse(day.toJson()))

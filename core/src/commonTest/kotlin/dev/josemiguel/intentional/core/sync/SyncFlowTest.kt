@@ -99,10 +99,22 @@ class SyncFlowTest {
         val phone = device("phone")
         val desktop = device("desktop")
         phone.exchangeUsage("2026-11-05", DayUsage(sites = mapOf("youtube.com" to 60_000L)), server.now)
-        val seen = desktop.exchangeUsage("2026-11-05", DayUsage(sites = mapOf("youtube.com" to 30_000L)), server.now)
+        val seen = desktop.exchangeUsage("2026-11-05", DayUsage(sites = mapOf("youtube.com" to 30_000L)), server.now).others
         assertEquals(mapOf("phone" to DayUsage(sites = mapOf("youtube.com" to 60_000L))), seen)
         assertTrue(server.tree.values.none { "youtube" in it.toString() }, "only ciphertext reaches the server")
-        assertEquals(setOf("desktop"), phone.exchangeUsage("2026-11-05", DayUsage(), server.now).keys)
+        assertEquals(setOf("desktop"), phone.exchangeUsage("2026-11-05", DayUsage(), server.now).others.keys)
+    }
+
+    @Test
+    fun aDeviceThatLostPartOfItsDayDoesNotLowerWhatItPublished() = runTest {
+        val tv = device("tv")
+        val day = "2026-11-06"
+        tv.exchangeUsage(day, DayUsage(apps = mapOf("yt.tv" to 40 * 60_000L), opened = 1), server.now)
+        // Rebooted with its clock in the past: its usage history is gone, and it starts over.
+        val after = tv.exchangeUsage(day, DayUsage(apps = mapOf("yt.tv" to 5 * 60_000L), closed = 2), server.now)
+        assertEquals(DayUsage(apps = mapOf("yt.tv" to 40 * 60_000L), opened = 1, closed = 2), after.mine)
+        val seen = device("phone").exchangeUsage(day, DayUsage(), server.now).others
+        assertEquals(after.mine, seen["tv"])
     }
 
     @Test

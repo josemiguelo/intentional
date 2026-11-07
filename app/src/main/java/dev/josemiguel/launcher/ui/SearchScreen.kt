@@ -30,8 +30,9 @@ import dev.josemiguel.launcher.AppEntry
 
 /**
  * Type-to-open. Regular apps match any substring; "considered" apps stay
- * invisible until at least three characters of their name are typed — the
- * impulse has to become a named intention before the app even appears.
+ * invisible until at least three characters of their name are typed (the
+ * whole name, for a shorter one like "X") — the impulse has to become a
+ * named intention before the app even appears.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -49,7 +50,7 @@ fun SearchScreen(
     val results = apps.filter { app ->
         val label = app.label.lowercase()
         if (app.packageName in considered) {
-            q.length >= 3 && label.startsWith(q)
+            q.length >= minOf(3, label.length) && label.startsWith(q)
         } else {
             q.isEmpty() || label.contains(q)
         }

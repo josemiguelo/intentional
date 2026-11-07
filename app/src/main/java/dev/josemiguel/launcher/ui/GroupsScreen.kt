@@ -15,7 +15,9 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -25,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import dev.josemiguel.intentional.core.AppGroup
 import dev.josemiguel.launcher.Prefs
+import kotlinx.coroutines.delay
 
 /**
  * Create groups of apps and websites and set each one's shared daily budget.
@@ -51,7 +54,20 @@ fun GroupsScreen(
     /** Adds a typed domain or pasted URL; false if it isn't one. */
     onAddSite: (String, String) -> Boolean,
     onRemoveSite: (String, String) -> Unit,
+    /** Changes with each sync, which brings the other devices' time. */
+    syncs: Int = 0,
 ) {
+    // The numbers move while the screen is open: re-read them every half
+    // minute and after each sync, or a screen opened before the first sync
+    // (a TV just switched on) keeps showing zeros.
+    var tick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30_000)
+            tick++
+        }
+    }
+    val usage = remember(groups, tick, syncs) { groups.associateWith { usageToday(it) to othersToday(it) } }
     var adding by remember { mutableStateOf(false) }
     var editingLimit by remember { mutableStateOf<AppGroup?>(null) }
     var addingSiteTo by remember { mutableStateOf<AppGroup?>(null) }
@@ -79,7 +95,8 @@ fun GroupsScreen(
         groups.forEach { group ->
             val changeable = canChangeLimit(group)
             val over = isOverBudget(group)
-            val (appMinutes, siteMinutes) = usageToday(group)
+            val (minutes, others) = usage.getValue(group)
+            val (appMinutes, siteMinutes) = minutes
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -94,7 +111,6 @@ fun GroupsScreen(
                             if (!changeable) " · locked ${daysUntilChangeable(group)}d" else "",
                         style = LauncherTheme.caption,
                     )
-                    val others = othersToday(group)
                     Text(
                         "today ${appMinutes + siteMinutes + (others ?: 0)} min · app $appMinutes · sites $siteMinutes" +
                             if (others != null) " · other devices $others" else "",

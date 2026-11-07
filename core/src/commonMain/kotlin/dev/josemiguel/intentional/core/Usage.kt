@@ -29,6 +29,18 @@ data class DayUsage(
         closed = closed + other.closed,
     )
 
+    /**
+     * Each number at least [other]'s. A day's time and counts only grow, so a
+     * lower one means this device lost some (a TV whose usage history is
+     * wiped when it boots with its clock in the past), not that it used less.
+     */
+    fun atLeast(other: DayUsage) = DayUsage(
+        apps = (apps.keys + other.apps.keys).associateWith { maxOf(apps[it] ?: 0L, other.apps[it] ?: 0L) },
+        sites = (sites.keys + other.sites.keys).associateWith { maxOf(sites[it] ?: 0L, other.sites[it] ?: 0L) },
+        opened = maxOf(opened, other.opened),
+        closed = maxOf(closed, other.closed),
+    )
+
     /** Only what counts toward some group, and the counts: all that leaves the device. */
     fun onlyFor(groups: List<AppGroup>) = copy(
         apps = apps.filterKeys { app -> groups.any { app in it.packages } },

@@ -2,6 +2,7 @@ package dev.josemiguel.launcher
 
 import android.content.Context
 import dev.josemiguel.intentional.core.AppGroup
+import dev.josemiguel.intentional.core.AppTime
 import dev.josemiguel.intentional.core.Budget
 import dev.josemiguel.intentional.core.Friction
 import dev.josemiguel.intentional.core.canChangeLimit
@@ -211,9 +212,20 @@ class Prefs(context: Context) {
         return total
     }
 
-    /** Drops per-site time for days before [keepFrom] (yyyy-mm-dd); returns how many entries went. */
-    fun pruneSiteTime(keepFrom: String): Int {
-        val old = sp.all.keys.filter { it.startsWith("site-") && it.removePrefix("site-").take(10) < keepFrom }
+    /** An app's [AppTime] today, or null before it was first seen today. */
+    fun appTime(packageName: String): AppTime? = AppTime.decode(sp.getString("app-${todaySuffix()}-$packageName", null))
+
+    fun putAppTimes(times: Map<String, AppTime>) {
+        val day = todaySuffix()
+        sp.edit().apply { times.forEach { (app, t) -> putString("app-$day-$app", t.encode()) } }.apply()
+    }
+
+    /** Drops per-site and per-app time for days before [keepFrom] (yyyy-mm-dd); returns how many entries went. */
+    fun pruneDailyTime(keepFrom: String): Int {
+        val old = sp.all.keys.filter { key ->
+            val prefix = listOf("site-", "app-").firstOrNull(key::startsWith) ?: return@filter false
+            key.removePrefix(prefix).take(10) < keepFrom
+        }
         if (old.isNotEmpty()) sp.edit().apply { old.forEach(::remove) }.apply()
         return old.size
     }

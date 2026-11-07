@@ -44,14 +44,20 @@ class Sync(private val config: SyncConfig, http: HttpClient = defaultHttpClient(
 
     val device: String get() = config.device
 
-    /** Publishes this device's [mine] for [day]; returns every other device's. */
-    suspend fun exchangeUsage(day: String, mine: DayUsage, nowMs: Long): Map<String, DayUsage> {
-        firebase.write("usage/$day/${config.device}", JsonPrimitive(vault.seal(mine.toJson())), nowMs)
-        val all = firebase.read("usage/$day", nowMs)?.jsonObject ?: return emptyMap()
-        return all.filterKeys { it != config.device }.mapNotNull { (device, sealed) ->
+    /**
+     * Publishes this device's [mine] for [day] and returns it with every other
+     * device's. What goes up is never below what this device published
+     * earlier that day ([DayUsage.atLeast]): a device that lost part of its
+     * day doesn't take it out of everyone's budget.
+     */
+    suspend fun exchangeUsage(day: String, mine: DayUsage, nowMs: Long): UsageExchange {
+        val all = firebase.read("usage/$day", nowMs)?.jsonObject.orEmpty().mapNotNull { (device, sealed) ->
             // One device's unreadable entry (an old key) mustn't stop the rest.
             runCatching { device to DayUsage.parse(vault.open(sealed.jsonPrimitive.content)) }.getOrNull()
         }.toMap()
+        val published = all[config.device]?.let(mine::atLeast) ?: mine
+        firebase.write("usage/$day/${config.device}", JsonPrimitive(vault.seal(published.toJson())), nowMs)
+        return UsageExchange(published, all - config.device)
     }
 
     /**
@@ -228,6 +234,9 @@ class Sync(private val config: SyncConfig, http: HttpClient = defaultHttpClient(
         return groups.withLimits(limits(nowMs), ::groupId)
     }
 }
+
+/** A usage exchange: what this device published for the day, and every other device's day. */
+data class UsageExchange(val mine: DayUsage, val others: Map<String, DayUsage>)
 
 enum class GroupsChange { NONE, PUSHED, ADOPTED }
 

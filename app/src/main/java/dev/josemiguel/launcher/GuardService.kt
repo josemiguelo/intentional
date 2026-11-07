@@ -20,6 +20,7 @@ import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import android.widget.Toast
 import androidx.compose.ui.graphics.toArgb
 import dev.josemiguel.intentional.core.AppGroup
@@ -135,6 +136,10 @@ class GuardService : AccessibilityService() {
     private val limitPoll = object : Runnable {
         override fun run() {
             val pkg = monitoredPackage ?: return
+            if (!stillInFront(pkg)) {
+                monitoredPackage = null
+                return
+            }
             if (isOverLimit(pkg)) {
                 Log.i(TAG, "limit reached: $pkg")
                 SiteBlockVpnService.refreshSoon()
@@ -471,8 +476,14 @@ class GuardService : AccessibilityService() {
         shield = null
     }
 
-    /** (Re)arms or stops the time-limit poll for the newly-foreground app. */
+    /**
+     * (Re)arms or stops the time-limit poll when an app takes the screen.
+     * Windows that only sit over it (the volume bar, a system popup, the
+     * keyboard) leave the poll running: on a TV a long video fires no events
+     * of its own, so a poll stopped by an overlay never came back.
+     */
     private fun updateLimitMonitoring(pkg: String) {
+        if (pkg != packageName && pkg !in launchablePackages() && pkg !in homePackages) return
         handler.removeCallbacks(limitPoll)
         monitoredPackage = null
 
@@ -483,6 +494,29 @@ class GuardService : AccessibilityService() {
 
         monitoredPackage = pkg
         limitPoll.run()
+    }
+
+    /**
+     * Whether [pkg] still has an app window on screen (picture-in-picture
+     * included), for a poll that outlived it: an app can leave for a screen
+     * that isn't a launchable app and fires no event the poll would stop on.
+     * When no window can be read, it's assumed to be.
+     */
+    private fun stillInFront(pkg: String): Boolean {
+        val apps = try {
+            windows.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
+                .mapNotNull { it.root?.packageName?.toString() }
+        } catch (e: Exception) {
+            emptyList()
+        }
+        return apps.isEmpty() || pkg in apps
+    }
+
+    /** The home screens (the TV's stock launcher, this app on a phone): taking the screen like an app does. */
+    private val homePackages: Set<String> by lazy {
+        packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)
+            .map { it.activityInfo.packageName }
+            .toSet()
     }
 
     private fun isOverLimit(pkg: String): Boolean {

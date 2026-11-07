@@ -28,8 +28,22 @@ object SyncRunner {
     private const val TAG = "SyncRunner"
     private const val INTERVAL_MS = 60_000L
 
+    /**
+     * After a failed cycle: soon, since right after a TV is switched on the
+     * network isn't up yet, and until a cycle succeeds the other devices'
+     * time is missing from every budget.
+     */
+    private const val RETRY_MS = 10_000L
+
     @Volatile
     private var others: Pair<String, DayUsage>? = null
+
+    /** This device's day as last published, which may hold time its own records lost. */
+    @Volatile
+    private var mine: Pair<String, DayUsage>? = null
+
+    /** Every successful cycle, for screens that show the synced numbers. */
+    val synced = kotlinx.coroutines.flow.MutableStateFlow(0)
 
     private var thread: HandlerThread? = null
     private var lastError: String? = null
@@ -42,6 +56,9 @@ object SyncRunner {
 
     /** What the other devices have spent today, as of the last good sync. */
     fun othersToday(): DayUsage? = others?.takeIf { it.first == LocalDate.now().toString() }?.second
+
+    /** What this device last published for today ([dev.josemiguel.intentional.core.sync.Sync.exchangeUsage]). */
+    fun mineToday(): DayUsage? = mine?.takeIf { it.first == LocalDate.now().toString() }?.second
 
     @Synchronized
     fun start(context: Context) {
@@ -58,8 +75,8 @@ object SyncRunner {
         val handler = Handler(t.looper)
         handler.post(object : Runnable {
             override fun run() {
-                if (app.getSystemService(PowerManager::class.java).isInteractive) cycle(app, sync)
-                handler.postDelayed(this, INTERVAL_MS)
+                val ok = !app.getSystemService(PowerManager::class.java).isInteractive || cycle(app, sync)
+                handler.postDelayed(this, if (ok) INTERVAL_MS else RETRY_MS)
             }
         })
         Log.i(TAG, "sync on as ${config.device}")
@@ -73,9 +90,10 @@ object SyncRunner {
 
     fun configFile(context: Context) = File(context.filesDir, "sync.json")
 
-    private fun cycle(context: Context, sync: Sync) = synchronized(cycleLock) { runCycle(context, sync) }
+    /** One cycle; false when it failed. */
+    private fun cycle(context: Context, sync: Sync): Boolean = synchronized(cycleLock) { runCycle(context, sync) }
 
-    private fun runCycle(context: Context, sync: Sync) = runBlocking {
+    private fun runCycle(context: Context, sync: Sync): Boolean = runBlocking {
         try {
             val prefs = Prefs(context)
             val now = System.currentTimeMillis()
@@ -105,7 +123,7 @@ object SyncRunner {
 
             val packages = limited.flatMap { it.packages }.toSet()
             val (opened, closed) = prefs.countsToday()
-            val mine = DayUsage(
+            val here = DayUsage(
                 apps = if (UsageStatsRepository.hasPermission(context)) {
                     UsageStatsRepository.foregroundMsToday(context, packages)
                 } else emptyMap(),
@@ -116,17 +134,22 @@ object SyncRunner {
             val day = LocalDate.now().toString()
             if (prunedOn != day) {
                 val keepFrom = firstKeptDay(day)
-                val dropped = sync.pruneUsage(keepFrom, now) + prefs.pruneSiteTime(keepFrom)
+                val dropped = sync.pruneUsage(keepFrom, now) + prefs.pruneDailyTime(keepFrom)
                 if (dropped > 0) Log.i(TAG, "pruned $dropped usage entries before $keepFrom")
                 prunedOn = day
             }
-            others = day to sync.exchangeUsage(day, mine, now).values.fold(DayUsage()) { a, b -> a + b }
+            val exchange = sync.exchangeUsage(day, here, now)
+            mine = day to exchange.mine
+            others = day to exchange.others.values.fold(DayUsage()) { a, b -> a + b }
+            synced.value++
             if (lastError != null) Log.i(TAG, "back")
             lastError = null
+            true
         } catch (e: Exception) {
             val message = e.message ?: e.toString()
             if (message != lastError) Log.w(TAG, "sync failed: $message")
             lastError = message
+            false
         }
     }
 }

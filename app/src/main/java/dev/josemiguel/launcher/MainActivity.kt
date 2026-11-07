@@ -24,6 +24,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -346,6 +347,7 @@ class MainActivity : ComponentActivity() {
                                 )
 
                                 Screen.Groups -> GroupsScreen(
+                                    syncs = SyncRunner.synced.collectAsState().value,
                                     groups = groupsVersion.let { prefs.groups },
                                     canChangeLimit = { prefs.canChangeGroupLimit(it) },
                                     daysUntilChangeable = { prefs.daysUntilChangeable(it) },

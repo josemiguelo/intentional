@@ -27,6 +27,11 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
         </intent>
+        <!-- Home screens: the guard's limit poll stops when one takes the screen -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
     </queries>
 
     <!-- Also a TV launcher (Android TV / Google TV), where there's no touchscreen -->

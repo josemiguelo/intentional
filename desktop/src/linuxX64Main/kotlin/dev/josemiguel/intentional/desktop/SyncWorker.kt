@@ -129,7 +129,7 @@ class SyncWorker(private val config: SyncConfig) {
             if (dropped + local > 0) log("sync: pruned usage before $keepFrom ($dropped synced, $local local)")
             prunedOn = day
         }
-        val others = sync.exchangeUsage(day, mine, now).values.fold(DayUsage()) { a, b -> a + b }
+        val others = sync.exchangeUsage(day, mine, now).others.values.fold(DayUsage()) { a, b -> a + b }
         writeText(Paths.remoteUsage(day), others.toJson())
         inbox.value = Remote(day, others)
     }
