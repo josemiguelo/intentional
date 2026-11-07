@@ -40,6 +40,10 @@ there. All three share one budget per group, synced end-to-end encrypted.
 - The home footer counts *intentional opens* and *paused-and-closed* moments
   for today, across every device. Never minutes. A reflection screen shows
   the last two weeks.
+- **History,** for when you do want the minutes: each group's time a day
+  across every device, the recent days one by one and the weeks before in
+  sums (settings → history on the phone and TV, `intentional history` on the
+  desktop).
 
 ## On each device
 
@@ -66,7 +70,7 @@ through a Firebase Realtime Database, about once a minute:
   lock is enforced by the database rules, so editing a file can't get around
   it.
 - **Offline,** a device keeps counting and enforcing, and catches up when it
-  reconnects. Usage is kept for 30 days.
+  reconnects. Usage is kept for a year, as history.
 
 ## Install and update
 
@@ -87,7 +91,7 @@ without losing settings or permissions. To build yourself:
 
 ```sh
 ./gradlew assembleDebug                         # Android, debuggable
-./gradlew assembleRelease -PappVersion=0.5.5    # Android, as releases ship
+./gradlew assembleRelease -PappVersion=0.5.6    # Android, as releases ship
 desktop/install.sh                              # desktop: build and install
 ./gradlew :core:allTests :desktop:linuxX64Test  # tests
 ```

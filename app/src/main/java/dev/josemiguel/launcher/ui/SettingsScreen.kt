@@ -51,6 +51,7 @@ fun SettingsScreen(
     uninstallProtected: Boolean,
     onOpenApps: () -> Unit,
     onOpenGroups: () -> Unit,
+    onOpenHistory: () -> Unit,
     onToggleWindDown: () -> Unit,
     onSetWindDownStart: (LocalTime) -> Unit,
     onSetWindDownEnd: (LocalTime) -> Unit,
@@ -80,6 +81,7 @@ fun SettingsScreen(
         SectionHeader("apps")
         SettingRow("manage apps →", onClick = onOpenApps)
         SettingRow("groups & time limits →", onClick = onOpenGroups)
+        SettingRow("history →", onClick = onOpenHistory)
 
         SectionHeader("wind-down")
         SettingRow(

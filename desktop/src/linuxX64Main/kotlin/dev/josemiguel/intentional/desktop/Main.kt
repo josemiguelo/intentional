@@ -4,11 +4,11 @@ import dev.josemiguel.intentional.core.DayUsage
 import dev.josemiguel.intentional.core.parseGroups
 import dev.josemiguel.intentional.core.usedMs
 
-const val VERSION = "0.5.5"
+const val VERSION = "0.5.6"
 
 /**
  * `intentional` runs the daemon; `intentional status` prints today's budget
- * use per group; `intentional apps` and `intentional group …` put desktop
+ * use per group; `intentional history [days]` the days and weeks before (HistoryCli); `intentional apps` and `intentional group …` put desktop
  * apps in groups (GroupsCli); `intentional --version` its version. Brave runs it as the native host, passing the extension's
  * origin ("chrome-extension://…/").
  */
@@ -16,6 +16,7 @@ fun main(args: Array<String>) {
     when {
         args.any { it.startsWith("chrome-extension://") } -> NativeHost.run()
         args.firstOrNull() == "status" -> status()
+        args.firstOrNull() == "history" -> HistoryCli.run(args.drop(1))
         args.firstOrNull() == "apps" -> GroupsCli.apps()
         args.firstOrNull() == "settings" -> PauseUi.settings().let { s ->
             val time = { m: Int -> "${(m / 60).toString().padStart(2, '0')}:${(m % 60).toString().padStart(2, '0')}" }
@@ -29,7 +30,7 @@ fun main(args: Array<String>) {
         args.firstOrNull() in setOf("consider", "unconsider", "considered") -> Considered.run(args.first(), args.drop(1))
         args.firstOrNull() == "--version" -> println("intentional $VERSION")
         args.isEmpty() || args.first() == "daemon" -> Daemon().run()
-        else -> println("usage: intentional [daemon | status | apps | group … | consider … | unconsider … | considered | settings | --version]")
+        else -> println("usage: intentional [daemon | status | history [days] | apps | group … | consider … | unconsider … | considered | settings | --version]")
     }
 }
 

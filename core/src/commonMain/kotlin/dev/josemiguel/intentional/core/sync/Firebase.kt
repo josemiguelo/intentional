@@ -36,13 +36,20 @@ class Firebase(private val config: SyncConfig, private val http: HttpClient) {
 
     /**
      * GET a path under the user's tree; null when nothing is there. [shallow]
-     * gets only the keys of its children (each mapped to true), not their data.
+     * gets only the keys of its children (each mapped to true), not their data;
+     * [query] adds the REST API's filters (orderBy, startAt…).
      */
-    suspend fun read(path: String, nowMs: Long, shallow: Boolean = false): JsonElement? {
+    suspend fun read(
+        path: String,
+        nowMs: Long,
+        shallow: Boolean = false,
+        query: Map<String, String> = emptyMap(),
+    ): JsonElement? {
         val res = withToken(nowMs) { token ->
             http.get(url(path)) {
                 parameter("auth", token)
                 if (shallow) parameter("shallow", "true")
+                query.forEach { (k, v) -> parameter(k, v) }
             }
         }
         val body = res.bodyAsText()

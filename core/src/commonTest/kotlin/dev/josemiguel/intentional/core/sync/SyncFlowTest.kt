@@ -201,18 +201,31 @@ class SyncFlowTest {
     @Test
     fun oldUsageIsPrunedForEveryDevice() = runTest {
         val phone = device("phone")
-        listOf("2026-09-01", "2026-10-06", "2026-10-07", "2026-11-05").forEach { day ->
+        listOf("2025-09-01", "2025-11-05", "2025-11-06", "2026-11-05").forEach { day ->
             phone.exchangeUsage(day, DayUsage(sites = mapOf("x.com" to 1L)), server.now)
             device("tv").exchangeUsage(day, DayUsage(sites = mapOf("x.com" to 2L)), server.now)
         }
         val keepFrom = firstKeptDay("2026-11-05")
-        assertEquals("2026-10-07", keepFrom)
+        assertEquals("2025-11-06", keepFrom)
         assertEquals(4, phone.pruneUsage(keepFrom, server.now))
         assertEquals(
-            setOf("usage/2026-10-07/phone", "usage/2026-10-07/tv", "usage/2026-11-05/phone", "usage/2026-11-05/tv"),
+            setOf("usage/2025-11-06/phone", "usage/2025-11-06/tv", "usage/2026-11-05/phone", "usage/2026-11-05/tv"),
             server.tree.keys.filter { it.startsWith("usage/") }.toSet(),
         )
         assertEquals(0, phone.pruneUsage(keepFrom, server.now))
+    }
+
+    @Test
+    fun historyReadsEveryDevicesDaysFromADayOn() = runTest {
+        val phone = device("phone")
+        listOf("2026-11-01", "2026-11-04", "2026-11-05").forEach { day ->
+            phone.exchangeUsage(day, DayUsage(sites = mapOf("x.com" to 1L)), server.now)
+            device("tv").exchangeUsage(day, DayUsage(apps = mapOf("yt.tv" to 2L)), server.now)
+        }
+        val history = device("desktop").usageSince("2026-11-04", server.now)
+        assertEquals(setOf("2026-11-04", "2026-11-05"), history.keys)
+        assertEquals(DayUsage(apps = mapOf("yt.tv" to 2L)), history.getValue("2026-11-05")["tv"])
+        assertEquals(setOf("phone", "tv"), history.getValue("2026-11-04").keys)
     }
 
     @Test

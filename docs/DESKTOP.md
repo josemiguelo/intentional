@@ -30,7 +30,9 @@ The counts sync with the day's time, so `intentional status` and the phone's
 home screen show every device's.
 
 The day's time is in `~/.local/state/intentional/usage/<date>.json`, saved
-every 10 seconds. `intentional status` prints each group's use.
+every 10 seconds. `intentional status` prints each group's use;
+`intentional history [days]` each day's before it (14 by default) and the
+weeks before those, across every device with sync.
 
 ## Install
 

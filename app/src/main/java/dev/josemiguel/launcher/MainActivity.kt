@@ -31,11 +31,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.app.NotificationManagerCompat
 import dev.josemiguel.intentional.core.AppGroup
+import dev.josemiguel.intentional.core.DayUsage
 import dev.josemiguel.intentional.core.WindDown
 import dev.josemiguel.intentional.core.usedMs
 import dev.josemiguel.launcher.ui.AppOptionsDialog
 import dev.josemiguel.launcher.ui.BlockedScreen
 import dev.josemiguel.launcher.ui.GroupsScreen
+import dev.josemiguel.launcher.ui.HistoryScreen
 import dev.josemiguel.launcher.ui.HomeScreen
 import dev.josemiguel.launcher.ui.LauncherPalette
 import dev.josemiguel.launcher.ui.LauncherTheme
@@ -48,6 +50,7 @@ import dev.josemiguel.launcher.ui.TrayScreen
 import dev.josemiguel.launcher.ui.Wallpaper
 import dev.josemiguel.launcher.ui.screenPanel
 import java.time.LocalTime
+import kotlinx.datetime.toKotlinLocalDate
 import kotlinx.datetime.toKotlinLocalTime
 
 sealed interface Screen {
@@ -58,6 +61,7 @@ sealed interface Screen {
     data object Settings : Screen
     data object SettingsApps : Screen
     data object Groups : Screen
+    data object History : Screen
     data class Pause(val app: AppEntry) : Screen
     data class Blocked(val app: AppEntry) : Screen
 }
@@ -65,7 +69,7 @@ sealed interface Screen {
 /** Screens drawn inside one full-screen panel (see [screenPanel]). */
 private val Screen.isFramed: Boolean
     get() = this == Screen.Search || this == Screen.Settings ||
-        this == Screen.SettingsApps || this == Screen.Groups
+        this == Screen.SettingsApps || this == Screen.Groups || this == Screen.History
 
 class MainActivity : ComponentActivity() {
 
@@ -140,6 +144,24 @@ class MainActivity : ComponentActivity() {
     }
 
     /** Sites and groups can't be removed while over budget — that would just undo the block. */
+    /** The synced history with today's live numbers: this device's (at least what it published) and the others'. */
+    private fun historyNow(): dev.josemiguel.intentional.core.History {
+        val groups = prefs.groups
+        val (opened, closed) = prefs.countsToday()
+        val here = DayUsage(
+            apps = if (UsageStatsRepository.hasPermission(this)) {
+                UsageStatsRepository.foregroundMsToday(this, groups.flatMap { it.packages }.toSet())
+            } else emptyMap(),
+            sites = prefs.sitesToday(),
+            opened = opened,
+            closed = closed,
+        )
+        val mine = SyncRunner.mineToday()?.let(here::atLeast) ?: here
+        val today = SyncRunner.othersToday()?.let { mine + it } ?: mine
+        val byDay = HistoryStore.load(this) + (java.time.LocalDate.now().toString() to today)
+        return dev.josemiguel.intentional.core.history(byDay, groups, java.time.LocalDate.now().toKotlinLocalDate())
+    }
+
     private fun isOverBudget(group: AppGroup): Boolean =
         UsageStatsRepository.groupUsedMinutes(this, group) >= group.limitMinutes
 
@@ -176,7 +198,7 @@ class MainActivity : ComponentActivity() {
                         BackHandler(enabled = true) {
                             when (screen) {
                                 rootScreen -> if (isTv) moveTaskToBack(true)
-                                Screen.SettingsApps, Screen.Groups -> screen = Screen.Settings
+                                Screen.SettingsApps, Screen.Groups, Screen.History -> screen = Screen.Settings
                                 else -> screen = rootScreen
                             }
                         }
@@ -261,6 +283,7 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onOpenApps = { screen = Screen.SettingsApps },
                                     onOpenGroups = { screen = Screen.Groups },
+                                    onOpenHistory = { screen = Screen.History },
                                     onToggleWindDown = {
                                         prefs.windDownEnabled = !windDownEnabled
                                         windDownEnabled = prefs.windDownEnabled
@@ -344,6 +367,11 @@ class MainActivity : ComponentActivity() {
                                         prefs.cycleFriction(it)
                                         frictionVersion++
                                     },
+                                )
+
+                                Screen.History -> HistoryScreen(
+                                    history = historyNow(),
+                                    synced = SyncRunner.configFile(this@MainActivity).exists(),
                                 )
 
                                 Screen.Groups -> GroupsScreen(

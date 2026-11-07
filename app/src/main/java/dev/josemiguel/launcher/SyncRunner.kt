@@ -51,6 +51,9 @@ object SyncRunner {
     /** The day old usage was last pruned (here and in Firebase). */
     private var prunedOn: String? = null
 
+    /** The day the history was last fetched ([HistoryStore]). */
+    private var historyOn: String? = null
+
     /** One cycle at a time, even across a stop/start (a guard rebind) mid-cycle. */
     private val cycleLock = Any()
 
@@ -141,6 +144,17 @@ object SyncRunner {
             val exchange = sync.exchangeUsage(day, here, now)
             mine = day to exchange.mine
             others = day to exchange.others.values.fold(DayUsage()) { a, b -> a + b }
+            if (historyOn != day) {
+                // History only: a failure here mustn't fail the cycle, it's tried again next time.
+                runCatching {
+                    val keepFrom = firstKeptDay(day)
+                    val fetched = sync.usageSince(HistoryStore.fetchFrom(context, keepFrom), now)
+                        .filterKeys { it < day }
+                        .mapValues { (_, devices) -> devices.values.fold(DayUsage()) { a, b -> a + b } }
+                    HistoryStore.merge(context, fetched, keepFrom)
+                    historyOn = day
+                }.onFailure { Log.w(TAG, "history: ${it.message}") }
+            }
             synced.value++
             if (lastError != null) Log.i(TAG, "back")
             lastError = null

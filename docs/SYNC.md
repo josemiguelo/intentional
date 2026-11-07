@@ -40,9 +40,12 @@ while the screen is on):
 - Desktop apps are `hypr:<window class>` in groups; Android packages and site
   domains need no prefix.
 
-Usage is history after its day, so it's kept for 30 days: once a day a
-syncing device deletes every device's older days in Firebase (and its own:
-the desktop's day files, the phone's per-site time).
+Usage is history after its day, kept for a year: once a day a syncing
+device deletes every device's older days in Firebase (and its own: the
+desktop's day files, the phone's per-site and per-app time). The phone and
+TV fetch the history once a day (only the days since the last fetch) for
+settings → history; `intentional history` reads it from Firebase each time.
+A year of three devices is about 1 MB.
 
 Cost: the free (Spark) plan, with a wide margin: three devices every minute
 all day is ~4,300 small writes and ~270 MB downloaded a month, against

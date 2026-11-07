@@ -32,7 +32,8 @@ import kotlinx.serialization.json.put
  * - `limits/<group id>`: {minutes, changedAt} in the clear, because the
  *   server's rules enforce the once-a-week change on them.
  *
- * Usage older than [KEEP_DAYS] is pruned ([pruneUsage]): only history.
+ * Usage older than [KEEP_DAYS] is pruned ([pruneUsage]); until then it's
+ * the history every device can show ([usageSince]).
  *
  * Calls are plain suspend functions: callers run them off their main loop
  * and keep enforcing with the last known numbers when offline.
@@ -58,6 +59,21 @@ class Sync(private val config: SyncConfig, http: HttpClient = defaultHttpClient(
         val published = all[config.device]?.let(mine::atLeast) ?: mine
         firebase.write("usage/$day/${config.device}", JsonPrimitive(vault.seal(published.toJson())), nowMs)
         return UsageExchange(published, all - config.device)
+    }
+
+    /**
+     * Every device's usage for each day from [fromDay] (yyyy-mm-dd) on: day
+     * to device to its day. For history only; one device's unreadable entry
+     * is left out.
+     */
+    suspend fun usageSince(fromDay: String, nowMs: Long): Map<String, Map<String, DayUsage>> {
+        val query = mapOf("orderBy" to "\"\$key\"", "startAt" to "\"$fromDay\"")
+        val days = firebase.read("usage", nowMs, query = query)?.jsonObject ?: return emptyMap()
+        return days.filterKeys { it >= fromDay }.mapValues { (_, devices) ->
+            devices.jsonObject.mapNotNull { (device, sealed) ->
+                runCatching { device to DayUsage.parse(vault.open(sealed.jsonPrimitive.content)) }.getOrNull()
+            }.toMap()
+        }
     }
 
     /**
@@ -274,8 +290,8 @@ fun Map<String, Int>.toConsideredJson(): String = considered.encodeToString(this
 
 fun parseConsideredJson(raw: String): Map<String, Int> = parseConsidered(raw)
 
-/** How many days of usage are kept (in Firebase and on each device). */
-const val KEEP_DAYS = 30
+/** How many days of usage are kept (in Firebase and on each device): a year. */
+const val KEEP_DAYS = 365
 
 /** The first day kept on [today] (both yyyy-mm-dd): [KEEP_DAYS] including today. */
 fun firstKeptDay(today: String): String =
